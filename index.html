@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casting & Figuration</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<style>
+  :root{
+    --bg:#16181D;
+    --surface:#1F222A;
+    --surface-2:#262A33;
+    --border:#333846;
+    --text:#EDEEF0;
+    --text-muted:#9AA0AC;
+    --accent:#E8B94A;
+    --accent-dark:#C79A2F;
+    --teal:#4A9B8E;
+    --red:#D9695F;
+    --green:#6FAE7A;
+    --radius:10px;
+    --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--font-ui); font-size:15px; line-height:1.45;
+  }
+  header.app-header{
+    display:flex; align-items:center; gap:14px;
+    padding:14px 20px; background:var(--surface);
+    border-bottom:4px solid var(--accent);
+    position:sticky; top:0; z-index:50;
+  }
+  header.app-header .slate{
+    width:34px;height:26px;border-radius:3px;
+    background:repeating-linear-gradient(45deg, #000 0 6px, var(--accent) 6px 12px);
+    border:2px solid #000; flex-shrink:0;
+  }
+  header.app-header h1{ font-size:18px; margin:0; letter-spacing:.3px; }
+  header.app-header .subtitle{ color:var(--text-muted); font-size:12px; }
+
+  nav.tabs{
+    display:flex; gap:2px; padding:0 20px; background:var(--surface);
+    border-bottom:1px solid var(--border); overflow-x:auto;
+    position:sticky; top:65px; z-index:49;
+  }
+  nav.tabs button{
+    background:none; border:none; color:var(--text-muted);
+    padding:12px 16px; font-size:14px; cursor:pointer; font-weight:600;
+    border-bottom:3px solid transparent; white-space:nowrap;
+    font-family:var(--font-ui);
+  }
+  nav.tabs button.active{ color:var(--accent); border-bottom-color:var(--accent); }
+  nav.tabs button:hover{ color:var(--text); }
+
+  main{ padding:20px; max-width:1400px; margin:0 auto; }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .toolbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .toolbar input[type=text], .toolbar select{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:var(--radius); font-family:var(--font-ui); font-size:14px;
+  }
+  button.btn{
+    background:var(--accent); color:#1A1A1A; border:none; font-weight:700;
+    padding:9px 16px; border-radius:var(--radius); cursor:pointer; font-size:14px;
+    font-family:var(--font-ui);
+  }
+  button.btn:hover{ background:var(--accent-dark); }
+  button.btn.secondary{ background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
+  button.btn.secondary:hover{ background:var(--border); }
+  button.btn.danger{ background:var(--red); color:#fff; }
+  button.btn-icon{
+    background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:16px;
+    padding:4px 8px;
+  }
+  button.btn-icon:hover{ color:var(--accent); }
+
+  /* Cards / grid */
+  .grid-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px; }
+  .person-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    overflow:hidden; cursor:pointer; transition:border-color .15s;
+  }
+  .person-card:hover{ border-color:var(--accent); }
+  .person-card .photo{
+    width:100%; aspect-ratio:3/4; background:var(--surface-2); background-size:cover; background-position:center;
+    display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:32px;
+  }
+  .person-card .info{ padding:10px 12px; }
+  .person-card .name{ font-weight:700; font-size:14px; }
+  .person-card .meta{ color:var(--text-muted); font-size:12px; margin-top:2px; }
+  .badge{
+    display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase;
+    padding:2px 7px; border-radius:20px; letter-spacing:.4px; margin-top:6px;
+  }
+  .badge.comedien{ background:rgba(232,185,74,.18); color:var(--accent); }
+  .badge.figurant{ background:rgba(74,155,142,.2); color:var(--teal); }
+  .badge.comedien_figurant{ background:rgba(232,185,74,.18); color:var(--accent); border:1px solid var(--teal); }
+
+  /* Modal */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.65); display:none;
+    align-items:flex-start; justify-content:center; z-index:100; padding:30px 16px; overflow-y:auto;
+  }
+  .modal-overlay.active{ display:flex; }
+  .modal{
+    background:var(--surface); border-radius:var(--radius); border:1px solid var(--border);
+    max-width:720px; width:100%; padding:22px; margin-bottom:40px;
+  }
+  .modal h2{ margin-top:0; font-size:18px; }
+  .modal .close-x{ float:right; cursor:pointer; color:var(--text-muted); font-size:20px; }
+  fieldset{ border:1px solid var(--border); border-radius:var(--radius); margin:0 0 14px; padding:12px 14px; }
+  fieldset legend{ color:var(--accent); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:0 6px; }
+  .field-row{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  .field{ flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px; }
+  .field label{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; }
+  .field input, .field select, .field textarea{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:8px; font-family:var(--font-ui); font-size:14px; width:100%;
+  }
+  .field.checkbox{ flex-direction:row; align-items:center; gap:8px; }
+  .field.checkbox label{ text-transform:none; font-size:13px; color:var(--text); }
+
+  .doc-list{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .doc-item{
+    display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:8px; padding:6px 10px; font-size:13px;
+  }
+  .doc-item .type-tag{ font-size:10px; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  .doc-item a{ color:var(--text); flex:1; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .doc-item a:hover{ color:var(--accent); }
+
+  .ai-extract-zone{
+    border:2px dashed var(--border); border-radius:var(--radius); padding:16px; text-align:center;
+    margin-bottom:14px; background:var(--surface-2);
+  }
+  .ai-extract-zone.dragover{ border-color:var(--accent); background:rgba(232,185,74,.06); }
+  .ai-extract-zone p{ margin:4px 0; color:var(--text-muted); font-size:13px; }
+  .ai-extract-zone textarea{ width:100%; min-height:60px; margin-top:8px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px; font-family:var(--font-ui); }
+
+  .spinner{ display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* Trombinoscope */
+  .filter-panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; margin-bottom:18px;
+  }
+  #trombi-results .person-card .info{ font-size:12px; }
+  #trombi-results .person-card .details{ font-family:var(--font-mono); font-size:11px; color:var(--text-muted); margin-top:4px; }
+
+  /* Dépouillement */
+  .jour-select-bar{ display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+  .role-section{ margin-bottom:18px; }
+  .role-section h3{ font-size:13px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); border-bottom:1px solid var(--border); padding-bottom:6px; }
+  table.role-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.role-table th{ text-align:left; color:var(--text-muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--border); }
+  table.role-table td{ padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  table.role-table img.thumb{ width:34px;height:34px;border-radius:6px;object-fit:cover; background:var(--surface-2); }
+  table.role-table tr:hover{ background:var(--surface-2); }
+
+  /* HMC */
+  table.hmc-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.hmc-table th{ text-align:left; color:var(--text-muted); font-size:11px; text-transform:uppercase; padding:8px; border-bottom:1px solid var(--border); position:sticky; top:110px; background:var(--bg); }
+  table.hmc-table td{ padding:8px; border-bottom:1px solid var(--border); }
+  .check-cell{ text-align:center; }
+  .check-cell input[type=checkbox]{ width:18px;height:18px; accent-color:var(--green); cursor:pointer; }
+  .check-cell input[type=time]{ background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:3px 5px; font-size:12px; margin-top:4px; width:90px; }
+  .hmc-done{ background:rgba(111,174,122,.08); }
+
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--text-muted); }
+  .empty-state .big{ font-size:38px; margin-bottom:10px; }
+
+  @media print{
+    header.app-header, nav.tabs, .toolbar, .filter-panel, .no-print{ display:none !important; }
+    body{ background:#fff; color:#000; }
+    #trombi-results{ display:grid !important; }
+    .person-card{ break-inside:avoid; border:1px solid #999 !important; }
+  }
+
+  @media (max-width:640px){
+    .modal{ padding:16px; }
+    header.app-header h1{ font-size:15px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="slate"></div>
+  <div>
+    <h1>Casting &amp; Figuration</h1>
+    <div class="subtitle">LEDR2 — Comédiens, figurants &amp; préparation HMC</div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="personnes">Comédiens / Figurants</button>
+  <button class="tab-btn" data-tab="trombinoscope">Trombinoscope</button>
+  <button class="tab-btn" data-tab="depouillement">Dépouillement</button>
+  <button class="tab-btn" data-tab="hmc">Préparation HMC</button>
+</nav>
+
+<main>
+
+  <!-- ============ ONGLET PERSONNES ============ -->
+  <section class="tab-panel active" id="tab-personnes">
+    <div class="toolbar">
+      <input type="text" id="search-personnes" placeholder="Rechercher un nom...">
+      <select id="filter-type-personne">
+        <option value="">Tous types</option>
+        <option value="comedien">Comédien</option>
+        <option value="figurant">Figurant</option>
+        <option value="comedien_figurant">Comédien + figurant</option>
+      </select>
+      <button class="btn" id="btn-new-personne">+ Ajouter une personne</button>
+    </div>
+    <div id="personnes-grid" class="grid-cards"></div>
+  </section>
+
+  <!-- ============ ONGLET TROMBINOSCOPE ============ -->
+  <section class="tab-panel" id="tab-trombinoscope">
+    <div class="filter-panel">
+      <div class="field-row">
+        <div class="field">
+          <label>Type</label>
+          <select id="tf-type">
+            <option value="">Tous</option>
+            <option value="comedien">Comédien</option>
+            <option value="figurant">Figurant</option>
+            <option value="comedien_figurant">Comédien + figurant</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Taille min (cm)</label>
+          <input type="number" id="tf-taille-min" placeholder="ex 180">
+        </div>
+        <div class="field">
+          <label>Taille max (cm)</label>
+          <input type="number" id="tf-taille-max" placeholder="ex 190">
+        </div>
+        <div class="field checkbox">
+          <input type="checkbox" id="tf-permis">
+          <label for="tf-permis">Permis de conduire requis</label>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Compétence / mot-clé</label>
+          <input type="text" id="tf-competence" placeholder="ex danse, moto, vélo...">
+        </div>
+        <div class="field">
+          <label>Langue</label>
+          <input type="text" id="tf-langue" placeholder="ex anglais">
+        </div>
+      </div>
+      <div class="field-row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="btn-trombi-reset">Réinitialiser</button>
+        <button class="btn" id="btn-trombi-filter">Générer le trombinoscope</button>
+        <button class="btn secondary no-print" id="btn-trombi-print">🖨 Imprimer / Exporter PDF</button>
+      </div>
+    </div>
+    <div id="trombi-count" style="color:var(--text-muted); font-size:13px; margin-bottom:10px;"></div>
+    <div id="trombi-results" class="grid-cards"></div>
+  </section>
+
+  <!-- ============ ONGLET DEPOUILLEMENT ============ -->
+  <section class="tab-panel" id="tab-depouillement">
+    <div class="jour-select-bar">
+      <select id="depouillement-jour-select"></select>
+      <button class="btn secondary" id="btn-new-jour">+ Nouveau jour de tournage</button>
+    </div>
+    <div id="depouillement-content"></div>
+  </section>
+
+  <!-- ============ ONGLET HMC ============ -->
+  <section class="tab-panel" id="tab-hmc">
+    <div class="jour-select-bar">
+      <select id="hmc-jour-select"></select>
+      <button class="btn secondary" id="btn-hmc-sync">↻ Synchroniser depuis le dépouillement</button>
+      <span id="hmc-realtime-indicator" style="font-size:12px; color:var(--green);">● temps réel actif</span>
+    </div>
+    <div id="hmc-content"></div>
+  </section>
+
+</main>
+
+<!-- ============ MODALS (injectés en JS) ============ -->
+<div class="modal-overlay" id="modal-overlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>
