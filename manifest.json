@@ -1,0 +1,9 @@
+{
+  "name": "Casting & Figuration",
+  "short_name": "Casting",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#16181D",
+  "theme_color": "#16181D",
+  "icons": []
+}
