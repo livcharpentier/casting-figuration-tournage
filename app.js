@@ -293,7 +293,7 @@ async function openPersonneModal(id) {
   document.getElementById("btn-ai-extract").addEventListener("click", runAiExtraction);
 
   // Glisser-déposer sur la zone d'extraction IA et sur le champ photo principal
-  enableDragDrop(document.getElementById("ai-extract-zone"), document.getElementById("ai-file-input"));
+  enableDragDrop(document.getElementById("ai-extract-zone"), document.getElementById("ai-file-input"), { append: true });
   document.getElementById("ai-file-input").addEventListener("change", (e) => {
     const files = Array.from(e.target.files || []);
     const names = files.map((f) => f.name);
@@ -417,8 +417,9 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-function enableDragDrop(zoneEl, fileInputEl) {
+function enableDragDrop(zoneEl, fileInputEl, options = {}) {
   if (!zoneEl || !fileInputEl) return;
+  const append = !!options.append;
   ["dragenter", "dragover"].forEach((evt) =>
     zoneEl.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.add("dragover"); })
   );
@@ -427,7 +428,14 @@ function enableDragDrop(zoneEl, fileInputEl) {
   );
   zoneEl.addEventListener("drop", (e) => {
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
-      fileInputEl.files = e.dataTransfer.files;
+      if (append && fileInputEl.multiple) {
+        const dt = new DataTransfer();
+        Array.from(fileInputEl.files || []).forEach((f) => dt.items.add(f));
+        Array.from(e.dataTransfer.files).forEach((f) => dt.items.add(f));
+        fileInputEl.files = dt.files;
+      } else {
+        fileInputEl.files = e.dataTransfer.files;
+      }
       fileInputEl.dispatchEvent(new Event("change"));
     }
   });
