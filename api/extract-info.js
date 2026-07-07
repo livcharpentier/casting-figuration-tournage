@@ -19,9 +19,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { imageBase64, imageMediaType, pdfBase64, texte, nomFichier } = req.body || {};
+    const body = req.body || {};
+    // Compatibilité : accepte soit l'ancien format (imageBase64/pdfBase64 uniques),
+    // soit le nouveau format en tableaux (images[], pdfs[]).
+    const images = body.images && body.images.length
+      ? body.images
+      : (body.imageBase64 ? [{ data: body.imageBase64, mediaType: body.imageMediaType }] : []);
+    const pdfs = body.pdfs && body.pdfs.length
+      ? body.pdfs
+      : (body.pdfBase64 ? [{ data: body.pdfBase64 }] : []);
+    const texte = body.texte;
+    const nomsFichiers = body.nomsFichiers && body.nomsFichiers.length
+      ? body.nomsFichiers
+      : (body.nomFichier ? [body.nomFichier] : []);
 
-    if (!imageBase64 && !pdfBase64 && !texte && !nomFichier) {
+    if (!images.length && !pdfs.length && !texte && !nomsFichiers.length) {
       res.status(400).json({ error: 'Aucune image, PDF, texte ni fichier fourni.' });
       return;
     }
@@ -55,49 +67,38 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
 }`;
 
     const content = [];
-    if (nomFichier) {
+
+    if (nomsFichiers.length) {
       content.push({
         type: 'text',
-        text: `Le nom du fichier envoyé contient souvent des informations utiles selon une convention du type "NOM_PRENOM_TAILLE_TYPE_TELEPHONE_EMAIL_ANNEE" (l'ordre et les séparateurs peuvent varier, ex underscores, tirets, points). Analyse ce nom de fichier et extrais-en tout ce qui est exploitable :\n\nNom du fichier : "${nomFichier}"\n\n${schemaDescription}`
+        text: `Les fichiers envoyés ont ces noms, qui contiennent parfois des informations utiles selon une convention du type "NOM_PRENOM_TAILLE_TYPE_TELEPHONE_EMAIL_ANNEE" (ordre/séparateurs variables) :\n${nomsFichiers.map((n) => `- "${n}"`).join("\n")}\n\nAnalyse ces noms et extrais-en tout ce qui est exploitable.`
       });
     }
     if (texte) {
       content.push({
         type: 'text',
-        text: `Voici un texte (mail, capture d'écran retranscrite, ou CV collé) d'un comédien/figurant pour un tournage de film. Extrais les informations utiles pour sa fiche.\n\n${schemaDescription}\n\nTexte source :\n"""\n${texte}\n"""`
+        text: `Voici un texte (mail, capture d'écran retranscrite, ou CV collé) d'un comédien/figurant pour un tournage de film. Extrais les informations utiles pour sa fiche.\n\nTexte source :\n"""\n${texte}\n"""`
       });
     }
-    if (imageBase64) {
+    images.forEach((img) => {
       content.push({
         type: 'image',
-        source: {
-          type: 'base64',
-          media_type: imageMediaType || 'image/jpeg',
-          data: imageBase64
-        }
+        source: { type: 'base64', media_type: img.mediaType || 'image/jpeg', data: img.data }
       });
-      content.push({
-        type: 'text',
-        text: texte
-          ? 'Complète également avec les informations visibles sur cette image (capture d\'écran, CV, ou photo/fiche).'
-          : `Voici une image (capture d'écran, CV, ou fiche) d'un comédien/figurant pour un tournage de film. Extrais les informations utiles pour sa fiche.\n\n${schemaDescription}`
-      });
-    }
-    if (pdfBase64) {
+    });
+    pdfs.forEach((pdf) => {
       content.push({
         type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: pdfBase64
-        }
+        source: { type: 'base64', media_type: 'application/pdf', data: pdf.data }
       });
+    });
+    if (images.length || pdfs.length) {
       content.push({
         type: 'text',
-        text: (texte || imageBase64)
-          ? 'Complète également avec les informations contenues dans ce CV (PDF).'
-          : `Voici le CV (PDF) d'un comédien/figurant pour un tournage de film. Extrais les informations utiles pour sa fiche.\n\n${schemaDescription}`
+        text: `Voici également ${images.length ? "une ou plusieurs photos" : ""}${images.length && pdfs.length ? " et " : ""}${pdfs.length ? "un ou plusieurs documents (CV)" : ""} d'un comédien/figurant pour un tournage de film. Analyse tout ce contenu (texte, noms de fichiers, images, documents) et combine les informations trouvées pour extraire la fiche la plus complète possible.\n\n${schemaDescription}`
       });
+    } else {
+      content.push({ type: 'text', text: schemaDescription });
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
