@@ -63,6 +63,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "lien_showreel": "",         // lien youtube/vimeo si présent
   "lien_site_web": "",
   "agence": "",
+  "experience_parcours": "",   // liste des expériences pertinentes trouvées : pièces de théâtre, tournages/films/séries, formations/écoles de comédie, avec dates si mentionnées. Une ligne par expérience (séparées par \\n). Ne pas résumer, garder les intitulés précis (titre, rôle, année, structure).
   "notes": ""                  // toute info utile qui ne rentre pas ailleurs
 }`;
 
