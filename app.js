@@ -972,24 +972,41 @@ async function generateTrombinoscope() {
 async function generateTrombinoscopePortraits() {
   let query = sb.from("personnes").select("*");
   const type = document.getElementById("tf-type").value;
+  const nom = document.getElementById("tf-nom").value.trim().toLowerCase();
   const tailleMin = document.getElementById("tf-taille-min").value;
   const tailleMax = document.getElementById("tf-taille-max").value;
+  const ageMin = document.getElementById("tf-age-min").value;
+  const ageMax = document.getElementById("tf-age-max").value;
   const permis = document.getElementById("tf-permis").checked;
   const metier = document.getElementById("tf-metier").value.trim().toLowerCase();
   const competence = document.getElementById("tf-competence").value.trim().toLowerCase();
   const langue = document.getElementById("tf-langue").value.trim().toLowerCase();
+  const rechercheLibre = document.getElementById("tf-recherche-libre").value.trim().toLowerCase();
 
   if (type) query = query.eq("type_personne", type);
   if (tailleMin) query = query.gte("taille_cm", Number(tailleMin));
   if (tailleMax) query = query.lte("taille_cm", Number(tailleMax));
+  if (ageMin) query = query.gte("age", Number(ageMin));
+  if (ageMax) query = query.lte("age", Number(ageMax));
   if (permis) query = query.eq("permis_conduire", true);
 
   const { data, error } = await query.order("nom");
   if (error) { alert(error.message); return; }
   let list = data || [];
+  if (nom) list = list.filter((p) => `${p.prenom} ${p.nom}`.toLowerCase().includes(nom));
   if (metier) list = list.filter((p) => (p.metier || "").toLowerCase().includes(metier));
   if (competence) list = list.filter((p) => (p.competences_particulieres || "").toLowerCase().includes(competence));
   if (langue) list = list.filter((p) => (p.langues || "").toLowerCase().includes(langue));
+  if (rechercheLibre) {
+    list = list.filter((p) => {
+      const champs = [
+        p.nom, p.prenom, p.metier, p.competences_particulieres, p.langues,
+        p.morphologie, p.couleur_yeux, p.couleur_cheveux, p.notes,
+        p.experience_parcours, p.agence, p.adresse, p.types_permis,
+      ];
+      return champs.some((c) => (c || "").toLowerCase().includes(rechercheLibre));
+    });
+  }
 
   document.getElementById("trombi-count").textContent = `${list.length} personne(s) correspondent aux critères.`;
   const grid = document.getElementById("trombi-results");
@@ -1074,12 +1091,16 @@ document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-planche").value = "portraits";
   document.getElementById("tf-type-wrapper").style.display = "flex";
   document.getElementById("tf-type").value = "";
+  document.getElementById("tf-nom").value = "";
   document.getElementById("tf-taille-min").value = "";
   document.getElementById("tf-taille-max").value = "";
+  document.getElementById("tf-age-min").value = "";
+  document.getElementById("tf-age-max").value = "";
   document.getElementById("tf-permis").checked = false;
   document.getElementById("tf-metier").value = "";
   document.getElementById("tf-competence").value = "";
   document.getElementById("tf-langue").value = "";
+  document.getElementById("tf-recherche-libre").value = "";
   document.getElementById("trombi-results").innerHTML = "";
   document.getElementById("trombi-count").textContent = "";
 });
