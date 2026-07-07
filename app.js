@@ -23,6 +23,7 @@ let state = {
   currentDepouillementJourId: null,
   currentHmcJourId: null,
   hmcRealtimeChannel: null,
+  lastTrombiSummary: [],
 };
 
 // ==========================================================
@@ -207,11 +208,123 @@ async function openFicheModal(id) {
       <div style="font-size:13px; white-space:pre-line;">${esc(p.notes)}</div>
     </fieldset>` : ""}
 
-    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px; flex-wrap:wrap;">
+      <button class="btn secondary" id="btn-fiche-print">🖨 Imprimer</button>
+      <button class="btn secondary" id="btn-fiche-email">✉️ Email</button>
+      <button class="btn secondary" id="btn-fiche-whatsapp">💬 WhatsApp</button>
       <button class="btn secondary" onclick="closeModal()">Fermer</button>
       <button class="btn" onclick="closeModal(); openPersonneModal('${p.id}')">✏️ Modifier</button>
     </div>
   `);
+
+  document.getElementById("btn-fiche-print").addEventListener("click", () => printFiche(p, documents));
+  document.getElementById("btn-fiche-email").addEventListener("click", () => shareFicheByEmail(p, documents));
+  document.getElementById("btn-fiche-whatsapp").addEventListener("click", () => shareFicheByWhatsapp(p, documents));
+}
+
+function buildFicheSummaryText(p, documents) {
+  const lines = [];
+  lines.push(`${p.prenom} ${p.nom}`);
+  lines.push(p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien + figurant");
+  if (p.taille_cm) lines.push(`Taille : ${p.taille_cm} cm`);
+  if (p.age) lines.push(`Âge : ${p.age} ans`);
+  if (p.metier) lines.push(`Métier : ${p.metier}`);
+  if (p.telephone) lines.push(`Tél : ${p.telephone}`);
+  if (p.email) lines.push(`Email : ${p.email}`);
+  if (p.permis_conduire) lines.push(`Permis : ${p.types_permis || "oui"}`);
+  if (p.competences_particulieres) lines.push(`Compétences : ${p.competences_particulieres}`);
+  if (p.experience_parcours) lines.push(`\nExpérience :\n${p.experience_parcours}`);
+  if (p.lien_instagram) lines.push(`Instagram : ${p.lien_instagram}`);
+  if (p.lien_showreel) lines.push(`YouTube/démo : ${p.lien_showreel}`);
+  if (p.lien_site_web) lines.push(`Site : ${p.lien_site_web}`);
+  if (p.agence) lines.push(`Agence : ${p.agence}${p.lien_agent ? " - " + p.lien_agent : ""}`);
+  if (p.photo_url) lines.push(`\nPhoto : ${p.photo_url}`);
+  const cv = documents.find((d) => d.type_document === "cv");
+  if (cv && cv.fichier_url) lines.push(`CV : ${cv.fichier_url}`);
+  const demo = documents.find((d) => d.type_document === "demo_video" || d.type_document === "demo_lien");
+  if (demo) lines.push(`Démo : ${demo.fichier_url || demo.lien_externe}`);
+  return lines.join("\n");
+}
+
+function shareFicheByEmail(p, documents) {
+  const subject = `Fiche - ${p.prenom} ${p.nom}`;
+  const body = buildFicheSummaryText(p, documents);
+  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function shareFicheByWhatsapp(p, documents) {
+  const text = buildFicheSummaryText(p, documents);
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+}
+
+function printFiche(p, documents) {
+  const photos = documents.filter((d) => d.type_document === "photo" && d.fichier_url);
+  const autresDocs = documents.filter((d) => d.type_document !== "photo");
+  const win = window.open("", "_blank");
+  win.document.write(`
+    <html><head><title>Fiche - ${esc(p.prenom)} ${esc(p.nom)}</title>
+    <style>
+      body{ font-family: Arial, sans-serif; padding:24px; color:#111; }
+      h1{ margin:0 0 4px; font-size:22px; }
+      .badge{ display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; background:#eee; padding:3px 8px; border-radius:12px; }
+      .row{ display:flex; gap:20px; margin-bottom:20px; }
+      .photo-main{ width:150px; height:190px; object-fit:cover; border-radius:8px; border:1px solid #ccc; }
+      .section{ margin-top:16px; }
+      .section h3{ font-size:12px; text-transform:uppercase; color:#666; border-bottom:1px solid #ccc; padding-bottom:4px; }
+      .photos-grid{ display:flex; gap:10px; flex-wrap:wrap; }
+      .photos-grid img{ width:90px; height:110px; object-fit:cover; border-radius:6px; border:1px solid #ccc; }
+      .doc-line{ font-size:13px; margin-bottom:4px; }
+      a{ color:#111; }
+    </style>
+    </head><body>
+      <div class="row">
+        ${p.photo_url ? `<img class="photo-main" src="${esc(p.photo_url)}">` : ""}
+        <div>
+          <h1>${esc(p.prenom)} ${esc(p.nom)}</h1>
+          <span class="badge">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien + figurant"}</span>
+          <p>
+            ${p.taille_cm ? "Taille : " + p.taille_cm + " cm<br>" : ""}
+            ${p.age ? "Âge : " + p.age + " ans<br>" : ""}
+            ${p.metier ? "Métier : " + esc(p.metier) + "<br>" : ""}
+            ${p.telephone ? "Tél : " + esc(p.telephone) + "<br>" : ""}
+            ${p.email ? "Email : " + esc(p.email) + "<br>" : ""}
+          </p>
+        </div>
+      </div>
+
+      ${photos.length ? `<div class="section"><h3>Photos</h3><div class="photos-grid">${photos.map((d) => `<img src="${esc(d.fichier_url)}">`).join("")}</div></div>` : ""}
+
+      <div class="section"><h3>Physique &amp; compétences</h3>
+        <p>
+          ${p.poids_kg ? "Poids : " + p.poids_kg + " kg<br>" : ""}
+          ${p.pointure ? "Pointure : " + p.pointure + "<br>" : ""}
+          ${p.couleur_yeux ? "Yeux : " + esc(p.couleur_yeux) + "<br>" : ""}
+          ${p.couleur_cheveux ? "Cheveux : " + esc(p.couleur_cheveux) + "<br>" : ""}
+          ${p.permis_conduire ? "Permis : " + esc(p.types_permis || "oui") + "<br>" : ""}
+          ${p.langues ? "Langues : " + esc(p.langues) + "<br>" : ""}
+          ${p.competences_particulieres ? "Compétences : " + esc(p.competences_particulieres) + "<br>" : ""}
+        </p>
+      </div>
+
+      ${p.experience_parcours ? `<div class="section"><h3>Expérience &amp; parcours</h3><p style="white-space:pre-line;">${esc(p.experience_parcours)}</p></div>` : ""}
+
+      <div class="section"><h3>Contenu professionnel</h3>
+        <p>
+          ${p.lien_instagram ? "Instagram : " + esc(p.lien_instagram) + "<br>" : ""}
+          ${p.lien_showreel ? "YouTube/démo : " + esc(p.lien_showreel) + "<br>" : ""}
+          ${p.lien_site_web ? "Site : " + esc(p.lien_site_web) + "<br>" : ""}
+          ${p.agence ? "Agence : " + esc(p.agence) + "<br>" : ""}
+        </p>
+      </div>
+
+      ${autresDocs.length ? `<div class="section"><h3>Documents</h3>${autresDocs.map((d) => `<div class="doc-line">${TYPE_DOC_LABELS[d.type_document] || d.type_document} : ${esc(d.libelle || d.fichier_url || d.lien_externe)}</div>`).join("")}</div>` : ""}
+
+      ${p.notes ? `<div class="section"><h3>Notes</h3><p style="white-space:pre-line;">${esc(p.notes)}</p></div>` : ""}
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
 }
 
 async function quickDeletePersonne(id) {
@@ -831,7 +944,17 @@ async function generateTrombinoscopePortraits() {
 
   document.getElementById("trombi-count").textContent = `${list.length} personne(s) correspondent aux critères.`;
   const grid = document.getElementById("trombi-results");
-  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucun résultat pour ces critères.</div>`; return; }
+  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucun résultat pour ces critères.</div>`; state.lastTrombiSummary = []; return; }
+  state.lastTrombiSummary = list.map((p) => ({
+    nom: `${p.prenom} ${p.nom}`,
+    details: [
+      p.taille_cm ? p.taille_cm + " cm" : "",
+      p.age ? p.age + " ans" : "",
+      p.metier || "",
+      p.permis_conduire ? "Permis " + (p.types_permis || "oui") : "",
+      p.telephone || "",
+    ].filter(Boolean).join(" · "),
+  }));
   grid.innerHTML = list.map((p) => {
     // priorité à une photo taguée "portrait" dans les documents si elle existe, sinon photo_url principale
     const photo = p._portraitUrl || p.photo_url;
@@ -868,7 +991,11 @@ async function generateTrombinoscopeCategorie(categorie) {
 
   document.getElementById("trombi-count").textContent = `${list.length} photo(s) — planche "${PLANCHE_LABELS[categorie] || categorie}".`;
   const grid = document.getElementById("trombi-results");
-  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune photo dans cette catégorie pour l'instant. Ajoute des photos "${PLANCHE_LABELS[categorie] || categorie}" depuis la fiche d'une personne.</div>`; return; }
+  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune photo dans cette catégorie pour l'instant. Ajoute des photos "${PLANCHE_LABELS[categorie] || categorie}" depuis la fiche d'une personne.</div>`; state.lastTrombiSummary = []; return; }
+  state.lastTrombiSummary = list.map((d) => ({
+    nom: d.personnes ? `${d.personnes.prenom} ${d.personnes.nom}` : "—",
+    details: d.libelle || "",
+  }));
   grid.innerHTML = list.map((d) => `
     <div class="person-card">
       <div class="photo" style="${d.fichier_url ? `background-image:url('${esc(d.fichier_url)}')` : ""}">${d.fichier_url ? "" : "🖼"}</div>
@@ -882,6 +1009,18 @@ async function generateTrombinoscopeCategorie(categorie) {
 
 document.getElementById("btn-trombi-filter").addEventListener("click", generateTrombinoscope);
 document.getElementById("btn-trombi-print").addEventListener("click", () => window.print());
+document.getElementById("btn-trombi-email").addEventListener("click", () => {
+  if (!state.lastTrombiSummary.length) { alert("Génère d'abord un trombinoscope."); return; }
+  const planche = document.getElementById("tf-planche").selectedOptions[0].textContent;
+  const body = `Trombinoscope — ${planche}\n\n` + state.lastTrombiSummary.map((x) => `${x.nom}${x.details ? " — " + x.details : ""}`).join("\n");
+  window.location.href = `mailto:?subject=${encodeURIComponent("Trombinoscope - " + planche)}&body=${encodeURIComponent(body)}`;
+});
+document.getElementById("btn-trombi-whatsapp").addEventListener("click", () => {
+  if (!state.lastTrombiSummary.length) { alert("Génère d'abord un trombinoscope."); return; }
+  const planche = document.getElementById("tf-planche").selectedOptions[0].textContent;
+  const text = `Trombinoscope — ${planche}\n\n` + state.lastTrombiSummary.map((x) => `${x.nom}${x.details ? " — " + x.details : ""}`).join("\n");
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+});
 document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-planche").value = "portraits";
   document.getElementById("tf-type-wrapper").style.display = "flex";
