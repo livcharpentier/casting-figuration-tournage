@@ -96,7 +96,8 @@ function renderPersonnesGrid() {
     return;
   }
   grid.innerHTML = list.map((p) => `
-    <div class="person-card" onclick="openPersonneModal('${p.id}')">
+    <div class="person-card" onclick="openPersonneModal('${p.id}')" style="position:relative;">
+      <button class="btn-icon" title="Supprimer" onclick="event.stopPropagation(); quickDeletePersonne('${p.id}')" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2;">🗑</button>
       <div class="photo" style="${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
       <div class="info">
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
@@ -105,6 +106,15 @@ function renderPersonnesGrid() {
       </div>
     </div>
   `).join("");
+}
+
+async function quickDeletePersonne(id) {
+  const p = state.personnes.find((x) => x.id === id);
+  const nomComplet = p ? `${p.prenom} ${p.nom}` : "cette personne";
+  if (!confirm(`Supprimer définitivement ${nomComplet} (et ses documents/photos) ?`)) return;
+  const { error } = await sb.from("personnes").delete().eq("id", id);
+  if (error) { alert("Erreur : " + error.message); return; }
+  await loadPersonnes();
 }
 document.getElementById("search-personnes").addEventListener("input", renderPersonnesGrid);
 document.getElementById("filter-type-personne").addEventListener("change", renderPersonnesGrid);
