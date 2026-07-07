@@ -97,7 +97,8 @@ function renderPersonnesGrid() {
     return;
   }
   grid.innerHTML = list.map((p) => `
-    <div class="person-card" onclick="openPersonneModal('${p.id}')" style="position:relative;">
+    <div class="person-card" onclick="openFicheModal('${p.id}')" style="position:relative;">
+      <button class="btn-icon" title="Modifier" onclick="event.stopPropagation(); openPersonneModal('${p.id}')" style="position:absolute; top:6px; left:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2;">✏️</button>
       <button class="btn-icon" title="Supprimer" onclick="event.stopPropagation(); quickDeletePersonne('${p.id}')" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2;">🗑</button>
       <div class="photo" style="${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
       <div class="info">
@@ -107,6 +108,110 @@ function renderPersonnesGrid() {
       </div>
     </div>
   `).join("");
+}
+
+const CAT_PHOTO_LABELS = { portrait: "Portrait", pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
+const TYPE_DOC_LABELS = { cv: "CV", demo_video: "Démo vidéo", demo_lien: "Démo (lien)", photo: "Photo", autre: "Autre" };
+
+async function openFicheModal(id) {
+  const p = state.personnes.find((x) => x.id === id);
+  if (!p) return;
+  const { data: docs } = await sb.from("documents_personne").select("*").eq("personne_id", id).order("created_at", { ascending: false });
+  const documents = docs || [];
+  const photos = documents.filter((d) => d.type_document === "photo" && d.fichier_url);
+  const autresDocs = documents.filter((d) => d.type_document !== "photo");
+
+  const infoLine = (label, val) => val ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br>${esc(val)}</div>` : "";
+  const linkLine = (label, url) => url ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br><a href="${esc(url)}" target="_blank" style="color:var(--accent);">${esc(url)}</a></div>` : "";
+
+  openModal(`
+    <span class="close-x" onclick="closeModal()">✕</span>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+      <div class="photo" style="width:140px; height:180px; border-radius:10px; flex-shrink:0; ${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
+      <div style="flex:1; min-width:200px;">
+        <h2 style="margin:0 0 6px;">${esc(p.prenom)} ${esc(p.nom)}</h2>
+        <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
+        <div style="margin-top:10px; font-size:13px; color:var(--text);">
+          ${p.taille_cm ? "Taille : " + p.taille_cm + " cm &nbsp;·&nbsp; " : ""}${p.age ? "Âge : " + p.age + " ans" : ""}
+          ${p.metier ? `<br>Métier : ${esc(p.metier)}` : ""}
+          ${p.telephone ? `<br>Tél : ${esc(p.telephone)}` : ""}
+          ${p.email ? `<br>Email : ${esc(p.email)}` : ""}
+          ${p.adresse ? `<br>Adresse : ${esc(p.adresse)}` : ""}
+        </div>
+      </div>
+    </div>
+
+    ${photos.length ? `
+    <fieldset>
+      <legend>Photos (${photos.length})</legend>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        ${photos.map((d) => `
+          <a href="${esc(d.fichier_url)}" target="_blank" style="text-decoration:none; color:inherit;">
+            <div style="width:100px;">
+              <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:cover; background-position:center;"></div>
+              <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
+            </div>
+          </a>
+        `).join("")}
+      </div>
+    </fieldset>` : ""}
+
+    <fieldset>
+      <legend>Physique &amp; compétences</legend>
+      <div style="columns:2; column-gap:20px;">
+        ${infoLine("Poids", p.poids_kg ? p.poids_kg + " kg" : "")}
+        ${infoLine("Pointure", p.pointure)}
+        ${infoLine("Tour de taille", p.tour_taille)}
+        ${infoLine("Tour de poitrine", p.tour_poitrine)}
+        ${infoLine("Yeux", p.couleur_yeux)}
+        ${infoLine("Cheveux", p.couleur_cheveux)}
+        ${infoLine("Morphologie", p.morphologie)}
+        ${infoLine("Permis", p.permis_conduire ? (p.types_permis || "Oui") : "")}
+        ${infoLine("Langues", p.langues)}
+        ${infoLine("Compétences", p.competences_particulieres)}
+      </div>
+    </fieldset>
+
+    ${p.experience_parcours ? `
+    <fieldset>
+      <legend>Expérience &amp; parcours</legend>
+      <div style="white-space:pre-line; font-size:13px;">${esc(p.experience_parcours)}</div>
+    </fieldset>` : ""}
+
+    <fieldset>
+      <legend>Contenu professionnel</legend>
+      ${linkLine("Instagram", p.lien_instagram)}
+      ${linkLine("YouTube / démo", p.lien_showreel)}
+      ${linkLine("Site personnel", p.lien_site_web)}
+      ${infoLine("Agence", p.agence)}
+      ${linkLine("Lien agent/agence", p.lien_agent)}
+      ${(!p.lien_instagram && !p.lien_showreel && !p.lien_site_web && !p.agence && !p.lien_agent) ? `<div style="color:var(--text-muted); font-size:13px;">Aucun lien renseigné.</div>` : ""}
+    </fieldset>
+
+    <fieldset>
+      <legend>Documents (${autresDocs.length})</legend>
+      ${autresDocs.length ? `
+        <div class="doc-list">
+          ${autresDocs.map((d) => `
+            <div class="doc-item">
+              <span class="type-tag">${TYPE_DOC_LABELS[d.type_document] || d.type_document}</span>
+              <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
+            </div>
+          `).join("")}
+        </div>` : `<div style="color:var(--text-muted); font-size:13px;">Aucun document (CV, démo...) ajouté.</div>`}
+    </fieldset>
+
+    ${p.notes ? `
+    <fieldset>
+      <legend>Notes</legend>
+      <div style="font-size:13px; white-space:pre-line;">${esc(p.notes)}</div>
+    </fieldset>` : ""}
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+      <button class="btn secondary" onclick="closeModal()">Fermer</button>
+      <button class="btn" onclick="closeModal(); openPersonneModal('${p.id}')">✏️ Modifier</button>
+    </div>
+  `);
 }
 
 async function quickDeletePersonne(id) {
