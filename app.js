@@ -197,9 +197,13 @@ function personneFormFields(p = {}) {
   <fieldset>
     <legend>Contenu professionnel</legend>
     <div class="field-row">
-      <div class="field"><label>Lien showreel / YouTube</label><input type="text" id="f-showreel" value="${esc(p.lien_showreel)}"></div>
-      <div class="field"><label>Site web</label><input type="text" id="f-site" value="${esc(p.lien_site_web)}"></div>
-      <div class="field"><label>Agence</label><input type="text" id="f-agence" value="${esc(p.agence)}"></div>
+      <div class="field"><label>Instagram</label><input type="text" id="f-instagram" value="${esc(p.lien_instagram)}" placeholder="https://instagram.com/..."></div>
+      <div class="field"><label>YouTube / bande démo</label><input type="text" id="f-showreel" value="${esc(p.lien_showreel)}" placeholder="https://youtube.com/..."></div>
+      <div class="field"><label>Site personnel</label><input type="text" id="f-site" value="${esc(p.lien_site_web)}" placeholder="https://..."></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Nom de l'agence</label><input type="text" id="f-agence" value="${esc(p.agence)}"></div>
+      <div class="field"><label>Lien agent / agence</label><input type="text" id="f-lien-agent" value="${esc(p.lien_agent)}" placeholder="https://..."></div>
     </div>
   </fieldset>
 
@@ -374,6 +378,7 @@ async function runAiExtraction() {
     setVal("f-competences", d.competences_particulieres);
     setVal("f-metier", d.metier);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
+    setVal("f-instagram", d.lien_instagram); setVal("f-lien-agent", d.lien_agent);
     setVal("f-experience", d.experience_parcours);
     setVal("f-notes", d.notes);
     // Reprendre automatiquement la 1ère photo comme photo principale
@@ -395,6 +400,10 @@ async function runAiExtraction() {
     if (d.telephone || d.email) champsTrouves.push(`<strong>Contact :</strong> ${esc(d.telephone || "")} ${esc(d.email || "")}`);
     if (d.permis_conduire) champsTrouves.push(`<strong>Permis :</strong> ${esc(d.types_permis || "oui")}`);
     if (d.metier) champsTrouves.push(`<strong>Métier :</strong> ${esc(d.metier)}`);
+    if (d.lien_instagram) champsTrouves.push(`<strong>Instagram :</strong> ${esc(d.lien_instagram)}`);
+    if (d.lien_showreel) champsTrouves.push(`<strong>YouTube / démo :</strong> ${esc(d.lien_showreel)}`);
+    if (d.lien_site_web) champsTrouves.push(`<strong>Site personnel :</strong> ${esc(d.lien_site_web)}`);
+    if (d.lien_agent || d.agence) champsTrouves.push(`<strong>Agence/agent :</strong> ${esc(d.agence || "")} ${esc(d.lien_agent || "")}`);
     if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
     if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
@@ -432,6 +441,7 @@ async function savePersonne() {
     permis_conduire: document.getElementById("f-permis").checked, types_permis: val("f-types-permis"),
     langues: val("f-langues"), competences_particulieres: val("f-competences"), metier: val("f-metier"),
     lien_showreel: val("f-showreel"), lien_site_web: val("f-site"), agence: val("f-agence"),
+    lien_instagram: val("f-instagram"), lien_agent: val("f-lien-agent"),
     experience_parcours: val("f-experience"),
     photo_annee: num("f-photo-annee"), notes: val("f-notes"),
     updated_at: new Date().toISOString(),
