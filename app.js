@@ -1264,11 +1264,19 @@ document.getElementById("upload-pdt").addEventListener("change", async (e) => {
   status.innerHTML = `<span class="spinner"></span> Analyse du PDT en cours (peut prendre 30s-1min sur un gros document)...`;
   try {
     const url = await uploadToStorage(file, "pdt");
-    const pdfBase64 = await fileToBase64(file);
+    const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
+
+    const payload = { type: "pdt" };
+    if (isExcelOrCsv) {
+      payload.texte = await excelFileToText(file);
+    } else {
+      payload.pdfBase64 = await fileToBase64(file);
+    }
+
     const res = await fetch("/api/extract-pdt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pdfBase64, type: "pdt" }),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if (json.error) { status.textContent = "Erreur : " + json.error; return; }
@@ -1280,6 +1288,19 @@ document.getElementById("upload-pdt").addEventListener("change", async (e) => {
     status.textContent = "Erreur : " + err.message;
   }
 });
+
+// Convertit un fichier Excel/CSV en texte (toutes les feuilles) pour l'envoyer à l'IA
+async function excelFileToText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: "array" });
+  let text = "";
+  workbook.SheetNames.forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    text += `--- Feuille : ${sheetName} ---\n${csv}\n\n`;
+  });
+  return text;
+}
 
 document.getElementById("upload-scenario").addEventListener("change", async (e) => {
   const file = e.target.files[0];
