@@ -111,7 +111,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 3000,
         messages: [{ role: 'user', content }]
       })
     });
@@ -131,8 +131,20 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
     try {
       extracted = JSON.parse(raw);
     } catch (e) {
-      res.status(502).json({ error: 'Réponse IA non parsable', raw });
-      return;
+      // Tentative de récupération : ne garder que ce qui est entre la première "{" et la dernière "}"
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        try {
+          extracted = JSON.parse(raw.slice(start, end + 1));
+        } catch (e2) {
+          res.status(502).json({ error: 'Réponse IA non parsable (probablement tronquée, réessaie ou réduis le nombre de fichiers analysés en une fois).', raw });
+          return;
+        }
+      } else {
+        res.status(502).json({ error: 'Réponse IA non parsable', raw });
+        return;
+      }
     }
 
     res.status(200).json({ extracted });
