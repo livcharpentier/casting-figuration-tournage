@@ -61,9 +61,11 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "langues": "",
   "competences_particulieres": "", // danse, chant, sport, instrument, cascade...
   "metier": "",                // métier réel de la personne dans la vie civile s'il est mentionné (ex infirmier, pompier, policier, parachutiste, militaire...), utile pour caster des rôles nécessitant un vrai savoir-faire ou une vraie expérience professionnelle
-  "lien_showreel": "",         // lien youtube/vimeo si présent
-  "lien_site_web": "",
-  "agence": "",
+  "lien_instagram": "",        // lien vers le profil Instagram s'il est mentionné (ou un identifiant du type @pseudo à transformer en https://instagram.com/pseudo)
+  "lien_showreel": "",         // lien vers une bande démo / YouTube / Vimeo (jamais Instagram ni un site perso ici)
+  "lien_site_web": "",         // site personnel/portfolio (jamais Instagram, YouTube ni le site d'une agence ici)
+  "agence": "",                // nom de l'agence ou de l'agent, si mentionné
+  "lien_agent": "",            // lien vers le site/la page de l'agence ou de l'agent, si mentionné (distinct du site personnel du comédien)
   "experience_parcours": "",   // liste des expériences pertinentes trouvées : pièces de théâtre, tournages/films/séries, formations/écoles de comédie, avec dates si mentionnées. Une ligne par expérience (séparées par \\n). Ne pas résumer, garder les intitulés précis (titre, rôle, année, structure).
   "notes": ""                  // toute info utile qui ne rentre pas ailleurs
 }`;
