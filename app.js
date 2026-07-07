@@ -18,6 +18,7 @@ let state = {
   personnes: [],
   currentEditingPersonneId: null,
   pendingPhotoFile: null,
+  pendingDocsAfterSave: [],
   jours: [],
   currentDepouillementJourId: null,
   currentHmcJourId: null,
@@ -123,9 +124,10 @@ document.getElementById("btn-new-personne").addEventListener("click", () => open
 function personneFormFields(p = {}) {
   return `
   <div class="ai-extract-zone" id="ai-extract-zone">
-    <p><strong>Extraction automatique</strong> — dépose une capture d'écran, un CV/photo, ou colle un texte (mail, fiche) pour pré-remplir le formulaire.</p>
-    <input type="file" id="ai-file-input" accept="image/*,.pdf" style="margin-top:6px;">
-    <textarea id="ai-text-input" placeholder="Ou colle ici un texte / mail à analyser..."></textarea>
+    <p><strong>Extraction automatique</strong> — dépose en une fois la photo, le CV et/ou la démo reçus par mail (plusieurs fichiers possibles), ou colle le texte du mail, pour pré-remplir le formulaire et ranger chaque fichier au bon endroit.</p>
+    <input type="file" id="ai-file-input" accept="image/*,.pdf,video/*" multiple style="margin-top:6px;">
+    <div id="ai-file-list" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+    <textarea id="ai-text-input" placeholder="Ou colle ici le texte du mail à analyser..."></textarea>
     <div style="margin-top:8px;">
       <button type="button" class="btn secondary" id="btn-ai-extract">✨ Analyser et pré-remplir</button>
       <span id="ai-extract-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
@@ -208,6 +210,7 @@ function personneFormFields(p = {}) {
 
 async function openPersonneModal(id) {
   state.currentEditingPersonneId = id;
+  state.pendingDocsAfterSave = [];
   let p = {};
   if (id) p = state.personnes.find((x) => x.id === id) || {};
 
@@ -269,6 +272,10 @@ async function openPersonneModal(id) {
 
   // Glisser-déposer sur la zone d'extraction IA et sur le champ photo principal
   enableDragDrop(document.getElementById("ai-extract-zone"), document.getElementById("ai-file-input"));
+  document.getElementById("ai-file-input").addEventListener("change", (e) => {
+    const names = Array.from(e.target.files || []).map((f) => f.name);
+    document.getElementById("ai-file-list").textContent = names.length ? "Fichiers sélectionnés : " + names.join(", ") : "";
+  });
   const photoField = document.getElementById("f-photo").closest(".field");
   photoField.style.border = "1px dashed var(--border)";
   photoField.style.borderRadius = "8px";
@@ -306,23 +313,35 @@ async function runAiExtraction() {
   const fileInput = document.getElementById("ai-file-input");
   const textInput = document.getElementById("ai-text-input");
   const status = document.getElementById("ai-extract-status");
-  const file = fileInput.files[0];
+  const files = Array.from(fileInput.files || []);
   const texte = textInput.value.trim();
 
-  if (!file && !texte) { status.textContent = "Ajoute un fichier ou du texte."; return; }
+  if (!files.length && !texte) { status.textContent = "Ajoute au moins un fichier ou du texte."; return; }
 
   status.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
   try {
-    const payload = { texte: texte || undefined };
-    if (file) {
-      payload.nomFichier = file.name;
+    const images = []; // {data, mediaType}
+    const pdfs = []; // {data}
+    const nomsFichiers = [];
+    let mainPhotoFile = null;
+
+    for (const file of files) {
+      nomsFichiers.push(file.name);
       if (file.type.startsWith("image/")) {
-        payload.imageBase64 = await fileToBase64(file);
-        payload.imageMediaType = file.type;
+        images.push({ data: await fileToBase64(file), mediaType: file.type });
+        if (!mainPhotoFile) mainPhotoFile = file; // la 1ère image sert de photo principale
+        else state.pendingDocsAfterSave.push({ file, type_document: "photo", categorie_photo: "autre" });
       } else if (file.type === "application/pdf") {
-        payload.pdfBase64 = await fileToBase64(file);
+        pdfs.push({ data: await fileToBase64(file) });
+        state.pendingDocsAfterSave.push({ file, type_document: "cv", categorie_photo: null });
+      } else if (file.type.startsWith("video/")) {
+        state.pendingDocsAfterSave.push({ file, type_document: "demo_video", categorie_photo: null });
+      } else {
+        state.pendingDocsAfterSave.push({ file, type_document: "autre", categorie_photo: null });
       }
     }
+
+    const payload = { texte: texte || undefined, images, pdfs, nomsFichiers };
     const res = await fetch("/api/extract-info", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,16 +362,17 @@ async function runAiExtraction() {
     setVal("f-competences", d.competences_particulieres);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
     setVal("f-notes", d.notes);
-    // Reprendre automatiquement la photo utilisée pour l'analyse comme photo principale
-    if (file && file.type.startsWith("image/")) {
+    // Reprendre automatiquement la 1ère photo comme photo principale
+    if (mainPhotoFile) {
       try {
         const dt = new DataTransfer();
-        dt.items.add(file);
+        dt.items.add(mainPhotoFile);
         document.getElementById("f-photo").files = dt.files;
       } catch (e2) { /* navigateur trop ancien, tant pis */ }
     }
 
-    status.textContent = "✓ Champs pré-remplis (photo reprise automatiquement), vérifie avant d'enregistrer.";
+    const nbExtra = state.pendingDocsAfterSave.length;
+    status.textContent = `✓ Champs pré-remplis${mainPhotoFile ? " (photo reprise automatiquement)" : ""}${nbExtra ? ` — ${nbExtra} autre(s) fichier(s) (CV/démo/photos) seront ajoutés aux documents après enregistrement` : ""}. Vérifie avant d'enregistrer.`;
   } catch (e) {
     status.textContent = "Erreur : " + e.message;
   }
@@ -381,7 +401,12 @@ async function savePersonne() {
   const photoFile = document.getElementById("f-photo").files[0];
 
   let personneId = state.currentEditingPersonneId;
+  const saveBtn = document.getElementById("btn-save-personne");
+  const originalLabel = saveBtn.textContent;
   try {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Enregistrement...";
+
     if (photoFile) record.photo_url = await uploadToStorage(photoFile, "photos");
 
     if (personneId) {
@@ -392,10 +417,33 @@ async function savePersonne() {
       if (error) throw error;
       personneId = data.id;
     }
+
+    // Ajout des fichiers en attente (CV, démo, photos supplémentaires détectés lors de l'extraction IA)
+    if (state.pendingDocsAfterSave.length) {
+      saveBtn.textContent = `Ajout de ${state.pendingDocsAfterSave.length} document(s)...`;
+      for (const doc of state.pendingDocsAfterSave) {
+        try {
+          const fichier_url = await uploadToStorage(doc.file, doc.type_document === "photo" ? "photos" : "documents");
+          await sb.from("documents_personne").insert({
+            personne_id: personneId,
+            type_document: doc.type_document,
+            categorie_photo: doc.categorie_photo,
+            libelle: doc.file.name,
+            fichier_url,
+          });
+        } catch (docErr) {
+          console.error("Erreur ajout document", doc.file.name, docErr);
+        }
+      }
+      state.pendingDocsAfterSave = [];
+    }
+
     closeModal();
     await loadPersonnes();
   } catch (e) {
     alert("Erreur lors de l'enregistrement : " + e.message);
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalLabel;
   }
 }
 
