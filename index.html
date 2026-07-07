@@ -322,8 +322,8 @@
           <input type="file" id="upload-bible" accept="application/pdf">
         </div>
         <div class="field">
-          <label>📅 PDT — Plan de travail (PDF)</label>
-          <input type="file" id="upload-pdt" accept="application/pdf">
+          <label>📅 PDT — Plan de travail (Excel ou PDF)</label>
+          <input type="file" id="upload-pdt" accept=".xlsx,.xls,.csv,application/pdf">
         </div>
         <div class="field">
           <label>🎬 Scénario (PDF)</label>
@@ -363,6 +363,7 @@
 <!-- ============ MODALS (injectés en JS) ============ -->
 <div class="modal-overlay" id="modal-overlay"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
