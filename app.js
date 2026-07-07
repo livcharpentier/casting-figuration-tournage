@@ -324,7 +324,22 @@ function printFiche(p, documents) {
   `);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 300);
+  // Attendre que toutes les images soient bien chargées avant d'ouvrir l'impression
+  let alreadyPrinted = false;
+  const doPrint = () => { if (!alreadyPrinted) { alreadyPrinted = true; win.print(); } };
+  const waitImagesAndPrint = () => {
+    const imgs = Array.from(win.document.images || []);
+    if (!imgs.length) { doPrint(); return; }
+    let remaining = imgs.length;
+    const done = () => { remaining -= 1; if (remaining <= 0) doPrint(); };
+    imgs.forEach((img) => {
+      if (img.complete) done();
+      else { img.addEventListener("load", done); img.addEventListener("error", done); }
+    });
+    // Filet de sécurité si une image ne se charge jamais
+    setTimeout(doPrint, 4000);
+  };
+  setTimeout(waitImagesAndPrint, 150);
 }
 
 async function quickDeletePersonne(id) {
