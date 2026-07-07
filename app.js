@@ -127,6 +127,17 @@ function personneFormFields(p = {}) {
     <p><strong>Extraction automatique</strong> — dépose en une fois la photo, le CV et/ou la démo reçus par mail (plusieurs fichiers possibles), ou colle le texte du mail, pour pré-remplir le formulaire et ranger chaque fichier au bon endroit.</p>
     <input type="file" id="ai-file-input" accept="image/*,.pdf,video/*" multiple style="margin-top:6px;">
     <div id="ai-file-list" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+    <div id="cv-preview-container" style="display:none; margin-top:10px;">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Aperçu du CV — clique-glisse sur la photo pour la sélectionner, puis clique "Utiliser cette zone comme photo" :</div>
+      <div id="cv-preview-wrapper" style="position:relative; display:inline-block; border:1px solid var(--border); border-radius:8px; overflow:hidden; cursor:crosshair; max-width:100%;">
+        <canvas id="cv-preview-canvas" style="display:block; max-width:100%;"></canvas>
+        <div id="cv-crop-box" style="position:absolute; border:2px dashed var(--accent); background:rgba(232,185,74,.15); display:none; pointer-events:none;"></div>
+      </div>
+      <div style="margin-top:8px;">
+        <button type="button" class="btn secondary" id="btn-use-crop">📷 Utiliser cette zone comme photo</button>
+        <span id="cv-crop-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
+      </div>
+    </div>
     <textarea id="ai-text-input" placeholder="Ou colle ici le texte du mail à analyser..."></textarea>
     <div style="margin-top:8px;">
       <button type="button" class="btn secondary" id="btn-ai-extract">✨ Analyser et pré-remplir</button>
@@ -284,8 +295,12 @@ async function openPersonneModal(id) {
   // Glisser-déposer sur la zone d'extraction IA et sur le champ photo principal
   enableDragDrop(document.getElementById("ai-extract-zone"), document.getElementById("ai-file-input"));
   document.getElementById("ai-file-input").addEventListener("change", (e) => {
-    const names = Array.from(e.target.files || []).map((f) => f.name);
+    const files = Array.from(e.target.files || []);
+    const names = files.map((f) => f.name);
     document.getElementById("ai-file-list").textContent = names.length ? "Fichiers sélectionnés : " + names.join(", ") : "";
+    const pdfFile = files.find((f) => f.type === "application/pdf");
+    if (pdfFile) previewPdfFirstPage(pdfFile);
+    else document.getElementById("cv-preview-container").style.display = "none";
   });
   const photoField = document.getElementById("f-photo").closest(".field");
   photoField.style.border = "1px dashed var(--border)";
@@ -303,6 +318,104 @@ async function openPersonneModal(id) {
   toggleDocCategorie();
   enableDragDrop(document.getElementById("doc-file-dropzone"), document.getElementById("doc-file"));
 }
+
+let cvCropState = { canvas: null, scale: 1, dragging: false, startX: 0, startY: 0, rect: null };
+
+async function previewPdfFirstPage(file) {
+  try {
+    if (typeof pdfjsLib !== "undefined") {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.4 });
+    const canvas = document.getElementById("cv-preview-canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    document.getElementById("cv-preview-container").style.display = "block";
+    document.getElementById("cv-crop-status").textContent = "";
+    document.getElementById("cv-crop-box").style.display = "none";
+    cvCropState = { canvas, scale: 1, dragging: false, startX: 0, startY: 0, rect: null };
+    bindCvCropEvents(canvas);
+  } catch (e) {
+    console.error("Erreur prévisualisation PDF", e);
+    document.getElementById("cv-preview-container").style.display = "none";
+  }
+}
+
+function bindCvCropEvents(canvas) {
+  const wrapper = document.getElementById("cv-preview-wrapper");
+  const cropBox = document.getElementById("cv-crop-box");
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    return { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY, dispX: e.clientX - r.left, dispY: e.clientY - r.top };
+  }
+
+  canvas.onmousedown = (e) => {
+    const pos = getPos(e);
+    cvCropState.dragging = true;
+    cvCropState.startX = pos.x;
+    cvCropState.startY = pos.y;
+    cropBox.style.left = pos.dispX + "px";
+    cropBox.style.top = pos.dispY + "px";
+    cropBox.style.width = "0px";
+    cropBox.style.height = "0px";
+    cropBox.style.display = "block";
+  };
+  wrapper.onmousemove = (e) => {
+    if (!cvCropState.dragging) return;
+    const pos = getPos(e);
+    const r = canvas.getBoundingClientRect();
+    const startDispX = cvCropState.startX / (canvas.width / r.width);
+    const startDispY = cvCropState.startY / (canvas.height / r.height);
+    const left = Math.min(startDispX, pos.dispX);
+    const top = Math.min(startDispY, pos.dispY);
+    const w = Math.abs(pos.dispX - startDispX);
+    const h = Math.abs(pos.dispY - startDispY);
+    cropBox.style.left = left + "px";
+    cropBox.style.top = top + "px";
+    cropBox.style.width = w + "px";
+    cropBox.style.height = h + "px";
+    cvCropState.rect = {
+      x: Math.min(cvCropState.startX, pos.x),
+      y: Math.min(cvCropState.startY, pos.y),
+      w: Math.abs(pos.x - cvCropState.startX),
+      h: Math.abs(pos.y - cvCropState.startY),
+    };
+  };
+  window.addEventListener("mouseup", () => { cvCropState.dragging = false; });
+}
+
+document.addEventListener("click", async (e) => {
+  if (e.target && e.target.id === "btn-use-crop") {
+    const status = document.getElementById("cv-crop-status");
+    const rect = cvCropState.rect;
+    if (!rect || rect.w < 10 || rect.h < 10) { status.textContent = "Dessine d'abord un rectangle sur la photo (clique-glisse)."; return; }
+    const srcCanvas = cvCropState.canvas;
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = rect.w;
+    cropCanvas.height = rect.h;
+    cropCanvas.getContext("2d").drawImage(srcCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+    cropCanvas.toBlob((blob) => {
+      const photoFile = new File([blob], "photo-cv-decoupee.png", { type: "image/png" });
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(photoFile);
+        document.getElementById("f-photo").files = dt.files;
+        status.textContent = "✓ Photo découpée reprise comme photo principale.";
+      } catch (e2) {
+        status.textContent = "Erreur : navigateur non compatible.";
+      }
+    }, "image/png");
+  }
+});
 
 function enableDragDrop(zoneEl, fileInputEl) {
   if (!zoneEl || !fileInputEl) return;
