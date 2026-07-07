@@ -24,6 +24,8 @@ let state = {
   currentHmcJourId: null,
   hmcRealtimeChannel: null,
   lastTrombiSummary: [],
+  films: [],
+  currentFilmId: localStorage.getItem("castingFiguration_currentFilmId") || null,
 };
 
 // ==========================================================
@@ -70,8 +72,8 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "depouillement") loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
-    if (btn.dataset.tab === "hmc") loadJoursDropdown("hmc-jour-select", onHmcJourChange);
+    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange));
+    if (btn.dataset.tab === "hmc") initFilmSelectors().then(() => loadJoursDropdown("hmc-jour-select", onHmcJourChange));
   });
 });
 
@@ -1138,10 +1140,66 @@ document.getElementById("btn-trombi-reset").addEventListener("click", () => {
 });
 
 // ==========================================================
-// JOURS DE TOURNAGE (partagé Dépouillement / HMC)
+// FILMS (base comédiens/figurants commune, dépouillement/PDT séparés par film)
+// ==========================================================
+async function loadFilms() {
+  const { data } = await sb.from("films").select("*").order("created_at");
+  state.films = data || [];
+}
+
+function populateFilmSelect(selectId) {
+  const select = document.getElementById(selectId);
+  select.innerHTML = state.films.length
+    ? state.films.map((f) => `<option value="${f.id}">${esc(f.nom)}</option>`).join("")
+    : `<option value="">— Aucun film, crée-en un —</option>`;
+  if (state.currentFilmId && state.films.some((f) => f.id === state.currentFilmId)) {
+    select.value = state.currentFilmId;
+  } else if (state.films.length) {
+    state.currentFilmId = state.films[0].id;
+    select.value = state.currentFilmId;
+    localStorage.setItem("castingFiguration_currentFilmId", state.currentFilmId);
+  }
+}
+
+async function initFilmSelectors() {
+  await loadFilms();
+  populateFilmSelect("film-select-depouillement");
+  populateFilmSelect("film-select-hmc");
+
+  document.getElementById("film-select-depouillement").onchange = (e) => onFilmChange(e.target.value);
+  document.getElementById("film-select-hmc").onchange = (e) => onFilmChange(e.target.value);
+}
+
+async function onFilmChange(newFilmId) {
+  state.currentFilmId = newFilmId;
+  localStorage.setItem("castingFiguration_currentFilmId", newFilmId || "");
+  document.getElementById("film-select-depouillement").value = newFilmId;
+  document.getElementById("film-select-hmc").value = newFilmId;
+  await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
+  await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
+}
+
+async function createNouveauFilm() {
+  const nom = prompt("Nom du film (ex: LEDR2, Nouveau projet...)");
+  if (!nom) return;
+  const description = prompt("Description (optionnel)") || null;
+  const { data, error } = await sb.from("films").insert({ nom, description }).select().single();
+  if (error) { alert(error.message); return; }
+  await loadFilms();
+  populateFilmSelect("film-select-depouillement");
+  populateFilmSelect("film-select-hmc");
+  await onFilmChange(data.id);
+}
+document.getElementById("btn-new-film-depouillement").addEventListener("click", createNouveauFilm);
+document.getElementById("btn-new-film-hmc").addEventListener("click", createNouveauFilm);
+
+// ==========================================================
+// JOURS DE TOURNAGE (partagé Dépouillement / HMC, filtrés par film actif)
 // ==========================================================
 async function loadJours() {
-  const { data } = await sb.from("depouillement_jours").select("*").order("jour_tournage");
+  let query = sb.from("depouillement_jours").select("*").order("jour_tournage");
+  if (state.currentFilmId) query = query.eq("film_id", state.currentFilmId);
+  const { data } = await query;
   state.jours = data || [];
 }
 async function loadJoursDropdown(selectId, onChange) {
@@ -1152,19 +1210,22 @@ async function loadJoursDropdown(selectId, onChange) {
     state.jours.map((j) => `<option value="${j.id}">${esc(j.jour_tournage)}${j.date_tournage ? " — " + j.date_tournage : ""}</option>`).join("");
   select.onchange = () => onChange(select.value);
   if (prevValue && state.jours.find((j) => j.id === prevValue)) { select.value = prevValue; onChange(prevValue); }
+  else { onChange(""); }
 }
 
 async function createNouveauJour() {
+  if (!state.currentFilmId) { alert("Choisis ou crée d'abord un film avant d'ajouter un jour de tournage."); return; }
   const jour_tournage = prompt("Nom du jour de tournage (ex: J20)");
   if (!jour_tournage) return;
   const date_tournage = prompt("Date de tournage (AAAA-MM-JJ), optionnel") || null;
   const sequences = prompt("Séquences prévues ce jour (optionnel)") || null;
-  const { error } = await sb.from("depouillement_jours").insert({ jour_tournage, date_tournage, sequences });
+  const { error } = await sb.from("depouillement_jours").insert({ jour_tournage, date_tournage, sequences, film_id: state.currentFilmId });
   if (error) { alert(error.message); return; }
   await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 document.getElementById("btn-new-jour").addEventListener("click", createNouveauJour);
+
 
 // ==========================================================
 // ONGLET DEPOUILLEMENT
@@ -1405,5 +1466,6 @@ function subscribeHmcRealtime(jourId) {
 // ==========================================================
 (async function init() {
   await loadPersonnes();
+  await loadFilms();
   await loadJours();
 })();
