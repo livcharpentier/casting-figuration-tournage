@@ -319,6 +319,8 @@ async function runAiExtraction() {
       if (file.type.startsWith("image/")) {
         payload.imageBase64 = await fileToBase64(file);
         payload.imageMediaType = file.type;
+      } else if (file.type === "application/pdf") {
+        payload.pdfBase64 = await fileToBase64(file);
       }
     }
     const res = await fetch("/api/extract-info", {
