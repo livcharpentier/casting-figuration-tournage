@@ -326,12 +326,14 @@ async function runAiExtraction() {
 
   status.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
   document.getElementById("ai-extract-results").style.display = "none";
+  state.pendingDocsAfterSave = [];
   try {
     const images = []; // {data, mediaType}
     const pdfs = []; // {data}
     const nomsFichiers = [];
     let mainPhotoFile = null;
 
+    const unreadableFiles = [];
     for (const file of files) {
       nomsFichiers.push(file.name);
       if (file.type.startsWith("image/")) {
@@ -344,6 +346,8 @@ async function runAiExtraction() {
       } else if (file.type.startsWith("video/")) {
         state.pendingDocsAfterSave.push({ file, type_document: "demo_video", categorie_photo: null });
       } else {
+        // Formats non lisibles par l'IA (ex: .rtfd, .doc, .pages...) : seul le nom du fichier sera utilisé
+        unreadableFiles.push(file.name);
         state.pendingDocsAfterSave.push({ file, type_document: "autre", categorie_photo: null });
       }
     }
@@ -393,6 +397,9 @@ async function runAiExtraction() {
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
     if (state.pendingDocsAfterSave.length) {
       champsTrouves.push(`<strong>Fichiers mis de côté :</strong> ${state.pendingDocsAfterSave.map((x) => esc(x.file.name) + " (" + x.type_document + ")").join(", ")} — seront ajoutés aux documents après enregistrement.`);
+    }
+    if (unreadableFiles.length) {
+      champsTrouves.push(`<span style="color:var(--red);">⚠ Format non lisible par l'IA :</span> ${unreadableFiles.map(esc).join(", ")} — seul le nom du fichier a pu être analysé. Convertis-le en PDF (Fichier → Exporter/Imprimer en PDF) pour que le contenu (théâtre, tournages, formations) soit vraiment lu.`);
     }
     if (champsTrouves.length) {
       resultsBox.style.display = "block";
