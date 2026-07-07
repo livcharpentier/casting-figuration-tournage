@@ -26,6 +26,7 @@ let state = {
   lastTrombiSummary: [],
   films: [],
   currentFilmId: localStorage.getItem("castingFiguration_currentFilmId") || null,
+  filmDocumentsCache: [],
 };
 
 // ==========================================================
@@ -72,7 +73,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange));
+    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => { loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange); loadFilmDocuments(state.currentFilmId); });
     if (btn.dataset.tab === "hmc") initFilmSelectors().then(() => loadJoursDropdown("hmc-jour-select", onHmcJourChange));
   });
 });
@@ -1177,6 +1178,7 @@ async function onFilmChange(newFilmId) {
   document.getElementById("film-select-hmc").value = newFilmId;
   await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
+  await loadFilmDocuments(newFilmId);
 }
 
 async function createNouveauFilm() {
@@ -1192,6 +1194,167 @@ async function createNouveauFilm() {
 }
 document.getElementById("btn-new-film-depouillement").addEventListener("click", createNouveauFilm);
 document.getElementById("btn-new-film-hmc").addEventListener("click", createNouveauFilm);
+
+// ==========================================================
+// DOCUMENTS DU FILM (bible, PDT, scénario)
+// ==========================================================
+async function loadFilmDocuments(filmId) {
+  const listEl = document.getElementById("film-documents-list");
+  if (!filmId) { listEl.innerHTML = ""; return; }
+  const { data } = await sb.from("film_documents").select("*").eq("film_id", filmId).order("created_at", { ascending: false });
+  const docs = data || [];
+  const labels = { bible: "📖 Bible", pdt: "📅 PDT", scenario: "🎬 Scénario" };
+  if (!docs.length) { listEl.innerHTML = `<div style="font-size:12px; color:var(--text-muted);">Aucun document importé pour ce film.</div>`; return; }
+  listEl.innerHTML = docs.map((d) => `
+    <div class="doc-item">
+      <span class="type-tag">${labels[d.type_document] || d.type_document}</span>
+      <a href="${esc(d.fichier_url)}" target="_blank">${esc(d.nom_fichier || d.fichier_url)}</a>
+      ${d.type_document === "scenario" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="showScenarioContent('${d.id}')">📋 Voir séquences</button>` : ""}
+      <button class="btn-icon" onclick="deleteFilmDocument('${d.id}', '${filmId}')">🗑</button>
+    </div>
+  `).join("");
+  // stocker pour affichage rapide du contenu extrait
+  state.filmDocumentsCache = docs;
+}
+
+async function deleteFilmDocument(docId, filmId) {
+  if (!confirm("Supprimer ce document ?")) return;
+  await sb.from("film_documents").delete().eq("id", docId);
+  await loadFilmDocuments(filmId);
+}
+
+function showScenarioContent(docId) {
+  const doc = (state.filmDocumentsCache || []).find((d) => d.id === docId);
+  if (!doc || !doc.contenu_extrait) return;
+  const sequences = doc.contenu_extrait;
+  openModal(`
+    <span class="close-x" onclick="closeModal()">✕</span>
+    <h2>Séquences extraites du scénario</h2>
+    <table class="role-table">
+      <thead><tr><th>N°</th><th>Décor</th><th>Résumé</th></tr></thead>
+      <tbody>
+        ${sequences.map((s) => `<tr><td>${esc(s.numero)}</td><td>${esc(s.decor)}</td><td>${esc(s.resume)}</td></tr>`).join("")}
+      </tbody>
+    </table>
+    <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+      <button class="btn secondary" onclick="closeModal()">Fermer</button>
+    </div>
+  `);
+}
+
+document.getElementById("upload-bible").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
+  const status = document.getElementById("film-documents-status");
+  status.innerHTML = `<span class="spinner"></span> Envoi de la bible...`;
+  try {
+    const url = await uploadToStorage(file, "bible");
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "bible", nom_fichier: file.name, fichier_url: url });
+    status.textContent = "✓ Bible importée.";
+    await loadFilmDocuments(state.currentFilmId);
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
+document.getElementById("upload-pdt").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
+  const status = document.getElementById("film-documents-status");
+  status.innerHTML = `<span class="spinner"></span> Analyse du PDT en cours (peut prendre 30s-1min sur un gros document)...`;
+  try {
+    const url = await uploadToStorage(file, "pdt");
+    const pdfBase64 = await fileToBase64(file);
+    const res = await fetch("/api/extract-pdt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdfBase64, type: "pdt" }),
+    });
+    const json = await res.json();
+    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "pdt", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
+    status.textContent = `✓ PDT analysé — ${json.extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    renderPdtReview(json.extracted);
+    await loadFilmDocuments(state.currentFilmId);
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
+document.getElementById("upload-scenario").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
+  const status = document.getElementById("film-documents-status");
+  status.innerHTML = `<span class="spinner"></span> Analyse du scénario en cours (peut prendre 1-2 min sur un long scénario)...`;
+  try {
+    const url = await uploadToStorage(file, "scenario");
+    const pdfBase64 = await fileToBase64(file);
+    const res = await fetch("/api/extract-pdt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdfBase64, type: "scenario" }),
+    });
+    const json = await res.json();
+    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "scenario", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
+    status.textContent = `✓ Scénario analysé — ${json.extracted.length} séquence(s) trouvée(s). Clique "📋 Voir séquences" dans la liste ci-dessous pour les consulter.`;
+    await loadFilmDocuments(state.currentFilmId);
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
+function renderPdtReview(jours) {
+  const container = document.getElementById("pdt-review-container");
+  if (!jours || !jours.length) { container.style.display = "none"; return; }
+  container.style.display = "block";
+  container.innerHTML = `
+    <div class="filter-panel">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie les jours détectés dans le PDT avant de les importer dans le dépouillement :</div>
+      <table class="role-table">
+        <thead><tr><th><input type="checkbox" id="pdt-check-all" checked></th><th>Jour</th><th>Date</th><th>Décor</th><th>Séquences</th></tr></thead>
+        <tbody>
+          ${jours.map((j, i) => `
+            <tr>
+              <td><input type="checkbox" class="pdt-row-check" data-idx="${i}" checked></td>
+              <td>${esc(j.jour_tournage)}</td>
+              <td>${esc(j.date_tournage)}</td>
+              <td>${esc(j.decor)}</td>
+              <td>${esc(j.sequences)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+        <button class="btn secondary" id="btn-pdt-cancel">Annuler</button>
+        <button class="btn" id="btn-pdt-import">Importer les jours sélectionnés</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("pdt-check-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".pdt-row-check").forEach((c) => { c.checked = e.target.checked; });
+  });
+  document.getElementById("btn-pdt-cancel").addEventListener("click", () => { container.style.display = "none"; container.innerHTML = ""; });
+  document.getElementById("btn-pdt-import").addEventListener("click", async () => {
+    const selected = Array.from(document.querySelectorAll(".pdt-row-check:checked")).map((c) => jours[Number(c.dataset.idx)]);
+    if (!selected.length) { alert("Sélectionne au moins un jour."); return; }
+    const btn = document.getElementById("btn-pdt-import");
+    btn.disabled = true;
+    btn.textContent = "Import en cours...";
+    for (const j of selected) {
+      await sb.from("depouillement_jours").insert({
+        jour_tournage: j.jour_tournage,
+        date_tournage: j.date_tournage || null,
+        sequences: [j.sequences, j.decor].filter(Boolean).join(" — "),
+        film_id: state.currentFilmId,
+      });
+    }
+    container.style.display = "none";
+    container.innerHTML = "";
+    await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
+    alert(`${selected.length} jour(s) importé(s) avec succès.`);
+  });
+}
 
 // ==========================================================
 // JOURS DE TOURNAGE (partagé Dépouillement / HMC, filtrés par film actif)
