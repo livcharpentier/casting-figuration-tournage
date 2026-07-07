@@ -128,7 +128,7 @@ async function openFicheModal(id) {
   openModal(`
     <span class="close-x" onclick="closeModal()">✕</span>
     <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
-      <div class="photo" style="width:140px; height:180px; border-radius:10px; flex-shrink:0; ${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
+      <div class="photo" style="width:140px; height:180px; border-radius:10px; flex-shrink:0; background-size:contain; background-repeat:no-repeat; background-position:center; background-color:var(--surface-2); ${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
       <div style="flex:1; min-width:200px;">
         <h2 style="margin:0 0 6px;">${esc(p.prenom)} ${esc(p.nom)}</h2>
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
@@ -149,7 +149,7 @@ async function openFicheModal(id) {
         ${photos.map((d) => `
           <a href="${esc(d.fichier_url)}" target="_blank" style="text-decoration:none; color:inherit;">
             <div style="width:100px;">
-              <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:cover; background-position:center;"></div>
+              <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center;"></div>
               <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
             </div>
           </a>
@@ -268,7 +268,7 @@ function printFiche(p, documents) {
       h1{ margin:0 0 4px; font-size:22px; }
       .badge{ display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; background:#eee; padding:3px 8px; border-radius:12px; }
       .row{ display:flex; gap:20px; margin-bottom:20px; }
-      .photo-main{ width:150px; height:190px; object-fit:cover; border-radius:8px; border:1px solid #ccc; }
+      .photo-main{ width:150px; height:190px; object-fit:contain; border-radius:8px; border:1px solid #ccc; background:#f4f4f4; }
       .section{ margin-top:16px; }
       .section h3{ font-size:12px; text-transform:uppercase; color:#666; border-bottom:1px solid #ccc; padding-bottom:4px; }
       .photos-grid{ display:flex; gap:10px; flex-wrap:wrap; }
