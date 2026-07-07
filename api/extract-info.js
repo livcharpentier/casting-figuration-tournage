@@ -19,10 +19,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { imageBase64, imageMediaType, texte, nomFichier } = req.body || {};
+    const { imageBase64, imageMediaType, pdfBase64, texte, nomFichier } = req.body || {};
 
-    if (!imageBase64 && !texte && !nomFichier) {
-      res.status(400).json({ error: 'Aucune image, texte ni fichier fourni.' });
+    if (!imageBase64 && !pdfBase64 && !texte && !nomFichier) {
+      res.status(400).json({ error: 'Aucune image, PDF, texte ni fichier fourni.' });
       return;
     }
 
@@ -81,6 +81,22 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
         text: texte
           ? 'Complète également avec les informations visibles sur cette image (capture d\'écran, CV, ou photo/fiche).'
           : `Voici une image (capture d'écran, CV, ou fiche) d'un comédien/figurant pour un tournage de film. Extrais les informations utiles pour sa fiche.\n\n${schemaDescription}`
+      });
+    }
+    if (pdfBase64) {
+      content.push({
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: pdfBase64
+        }
+      });
+      content.push({
+        type: 'text',
+        text: (texte || imageBase64)
+          ? 'Complète également avec les informations contenues dans ce CV (PDF).'
+          : `Voici le CV (PDF) d'un comédien/figurant pour un tournage de film. Extrais les informations utiles pour sa fiche.\n\n${schemaDescription}`
       });
     }
 
