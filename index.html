@@ -308,6 +308,11 @@
 
   <!-- ============ ONGLET DEPOUILLEMENT ============ -->
   <section class="tab-panel" id="tab-depouillement">
+    <div class="jour-select-bar" style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px;">
+      <strong style="font-size:13px; color:var(--text-muted);">Film :</strong>
+      <select id="film-select-depouillement"></select>
+      <button class="btn secondary" id="btn-new-film-depouillement">+ Nouveau film</button>
+    </div>
     <div class="jour-select-bar">
       <select id="depouillement-jour-select"></select>
       <button class="btn secondary" id="btn-new-jour">+ Nouveau jour de tournage</button>
@@ -317,6 +322,11 @@
 
   <!-- ============ ONGLET HMC ============ -->
   <section class="tab-panel" id="tab-hmc">
+    <div class="jour-select-bar" style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px;">
+      <strong style="font-size:13px; color:var(--text-muted);">Film :</strong>
+      <select id="film-select-hmc"></select>
+      <button class="btn secondary" id="btn-new-film-hmc">+ Nouveau film</button>
+    </div>
     <div class="jour-select-bar">
       <select id="hmc-jour-select"></select>
       <button class="btn secondary" id="btn-hmc-sync">↻ Synchroniser depuis le dépouillement</button>
