@@ -120,6 +120,9 @@ async function openFicheModal(id) {
   const { data: docs } = await sb.from("documents_personne").select("*").eq("personne_id", id).order("created_at", { ascending: false });
   const documents = docs || [];
   const photos = documents.filter((d) => d.type_document === "photo" && d.fichier_url);
+  if (p.photo_url && !photos.some((d) => d.fichier_url === p.photo_url)) {
+    photos.unshift({ id: "principale", fichier_url: p.photo_url, categorie_photo: "portrait" });
+  }
   const autresDocs = documents.filter((d) => d.type_document !== "photo");
 
   const infoLine = (label, val) => val ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br>${esc(val)}</div>` : "";
@@ -144,16 +147,22 @@ async function openFicheModal(id) {
 
     ${photos.length ? `
     <fieldset>
-      <legend>Photos (${photos.length})</legend>
+      <legend>Photos (${photos.length}) — clique "Utiliser pour le trombi" pour changer la photo affichée dans le Trombinoscope</legend>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        ${photos.map((d) => `
-          <a href="${esc(d.fichier_url)}" target="_blank" style="text-decoration:none; color:inherit;">
-            <div style="width:100px;">
-              <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center;"></div>
-              <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
-            </div>
-          </a>
-        `).join("")}
+        ${photos.map((d) => {
+          const isCurrent = p.photo_url === d.fichier_url;
+          return `
+          <div style="width:100px;">
+            <a href="${esc(d.fichier_url)}" target="_blank" style="text-decoration:none; color:inherit;">
+              <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center; ${isCurrent ? "outline:2px solid var(--accent);" : ""}"></div>
+            </a>
+            <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
+            ${isCurrent
+              ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">★ Photo trombi actuelle</div>`
+              : `<button type="button" class="btn-icon" style="font-size:10px; width:100%; text-align:center; margin-top:2px;" onclick="setPhotoTrombi('${p.id}', '${esc(d.fichier_url).replace(/'/g, "\\'")}')">Utiliser pour le trombi</button>`}
+          </div>
+        `;
+        }).join("")}
       </div>
     </fieldset>` : ""}
 
@@ -340,6 +349,13 @@ function printFiche(p, documents) {
     setTimeout(doPrint, 4000);
   };
   setTimeout(waitImagesAndPrint, 150);
+}
+
+async function setPhotoTrombi(personneId, url) {
+  const { error } = await sb.from("personnes").update({ photo_url: url, updated_at: new Date().toISOString() }).eq("id", personneId);
+  if (error) { alert("Erreur : " + error.message); return; }
+  await loadPersonnes();
+  await openFicheModal(personneId);
 }
 
 async function quickDeletePersonne(id) {
