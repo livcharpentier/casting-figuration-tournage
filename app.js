@@ -459,7 +459,7 @@ function personneFormFields(p = {}) {
       <div class="field"><label>Date de naissance</label><input type="date" id="f-date-naissance" value="${p.date_naissance || ""}"></div>
       <div class="field"><label>Âge</label><input type="number" id="f-age" value="${p.age ?? ""}"></div>
       <div class="field"><label>Photo (fichier)</label><input type="file" id="f-photo" accept="image/*"></div>
-      <div class="field"><label>Année de la photo</label><input type="number" id="f-photo-annee" value="${p.photo_annee ?? ""}"></div>
+      <div class="field"><label>Année de la photo principale (ci-dessus)</label><input type="number" id="f-photo-annee" value="${p.photo_annee ?? ""}"></div>
     </div>
   </fieldset>
 
@@ -562,7 +562,7 @@ async function openPersonneModal(id) {
           </select>
         </div>
         <div class="field"><label>Libellé</label><input type="text" id="doc-libelle" placeholder="ex Peugeot 208 grise, Book 2025..."></div>
-        <div class="field" id="doc-annee-wrapper"><label>Année de la photo</label><input type="number" id="doc-annee" placeholder="ex 2023"></div>
+        <div class="field" id="doc-annee-wrapper"><label>Année de cette photo (à ajouter ci-dessous)</label><input type="number" id="doc-annee" placeholder="ex 2023"></div>
       </div>
       <div class="field-row">
         <div class="field" id="doc-file-dropzone" style="border:1px dashed var(--border); border-radius:8px; padding:6px 8px;">
