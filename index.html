@@ -313,6 +313,29 @@
       <select id="film-select-depouillement"></select>
       <button class="btn secondary" id="btn-new-film-depouillement">+ Nouveau film</button>
     </div>
+
+    <div class="filter-panel" id="film-documents-panel">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">📁 Documents du film — importe la bible, le PDT et le scénario pour ce film</div>
+      <div class="field-row">
+        <div class="field">
+          <label>📖 Bible (PDF)</label>
+          <input type="file" id="upload-bible" accept="application/pdf">
+        </div>
+        <div class="field">
+          <label>📅 PDT — Plan de travail (PDF)</label>
+          <input type="file" id="upload-pdt" accept="application/pdf">
+        </div>
+        <div class="field">
+          <label>🎬 Scénario (PDF)</label>
+          <input type="file" id="upload-scenario" accept="application/pdf">
+        </div>
+      </div>
+      <div id="film-documents-status" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+      <div id="film-documents-list" style="margin-top:8px;"></div>
+    </div>
+
+    <div id="pdt-review-container" style="display:none;"></div>
+
     <div class="jour-select-bar">
       <select id="depouillement-jour-select"></select>
       <button class="btn secondary" id="btn-new-jour">+ Nouveau jour de tournage</button>
