@@ -189,6 +189,7 @@ function personneFormFields(p = {}) {
       <div class="field"><label>Langues</label><input type="text" id="f-langues" value="${esc(p.langues)}"></div>
     </div>
     <div class="field-row">
+      <div class="field"><label>Métier réel (si utile pour un rôle : infirmier, pompier, policier, parachutiste...)</label><input type="text" id="f-metier" value="${esc(p.metier)}" placeholder="ex infirmier, pompier, policier, parachutiste..."></div>
       <div class="field"><label>Compétences particulières</label><input type="text" id="f-competences" value="${esc(p.competences_particulieres)}" placeholder="danse, chant, sport, cascade..."></div>
     </div>
   </fieldset>
@@ -371,6 +372,7 @@ async function runAiExtraction() {
     if (d.permis_conduire) document.getElementById("f-permis").checked = true;
     setVal("f-types-permis", d.types_permis); setVal("f-langues", d.langues);
     setVal("f-competences", d.competences_particulieres);
+    setVal("f-metier", d.metier);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
     setVal("f-experience", d.experience_parcours);
     setVal("f-notes", d.notes);
@@ -392,6 +394,7 @@ async function runAiExtraction() {
     if (d.taille_cm) champsTrouves.push(`<strong>Taille :</strong> ${d.taille_cm} cm`);
     if (d.telephone || d.email) champsTrouves.push(`<strong>Contact :</strong> ${esc(d.telephone || "")} ${esc(d.email || "")}`);
     if (d.permis_conduire) champsTrouves.push(`<strong>Permis :</strong> ${esc(d.types_permis || "oui")}`);
+    if (d.metier) champsTrouves.push(`<strong>Métier :</strong> ${esc(d.metier)}`);
     if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
     if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
@@ -427,7 +430,7 @@ async function savePersonne() {
     couleur_yeux: val("f-yeux"), couleur_cheveux: val("f-cheveux"), morphologie: val("f-morphologie"),
     telephone: val("f-tel"), email: val("f-email"), adresse: val("f-adresse"),
     permis_conduire: document.getElementById("f-permis").checked, types_permis: val("f-types-permis"),
-    langues: val("f-langues"), competences_particulieres: val("f-competences"),
+    langues: val("f-langues"), competences_particulieres: val("f-competences"), metier: val("f-metier"),
     lien_showreel: val("f-showreel"), lien_site_web: val("f-site"), agence: val("f-agence"),
     experience_parcours: val("f-experience"),
     photo_annee: num("f-photo-annee"), notes: val("f-notes"),
@@ -557,6 +560,7 @@ async function generateTrombinoscopePortraits() {
   const tailleMin = document.getElementById("tf-taille-min").value;
   const tailleMax = document.getElementById("tf-taille-max").value;
   const permis = document.getElementById("tf-permis").checked;
+  const metier = document.getElementById("tf-metier").value.trim().toLowerCase();
   const competence = document.getElementById("tf-competence").value.trim().toLowerCase();
   const langue = document.getElementById("tf-langue").value.trim().toLowerCase();
 
@@ -568,6 +572,7 @@ async function generateTrombinoscopePortraits() {
   const { data, error } = await query.order("nom");
   if (error) { alert(error.message); return; }
   let list = data || [];
+  if (metier) list = list.filter((p) => (p.metier || "").toLowerCase().includes(metier));
   if (competence) list = list.filter((p) => (p.competences_particulieres || "").toLowerCase().includes(competence));
   if (langue) list = list.filter((p) => (p.langues || "").toLowerCase().includes(langue));
 
@@ -585,6 +590,7 @@ async function generateTrombinoscopePortraits() {
         <div class="details">
           ${p.taille_cm ? "Taille: " + p.taille_cm + " cm<br>" : ""}
           ${p.age ? "Âge: " + p.age + " ans<br>" : ""}
+          ${p.metier ? "Métier: " + esc(p.metier) + "<br>" : ""}
           ${p.permis_conduire ? "Permis: " + (p.types_permis || "oui") + "<br>" : ""}
           ${p.telephone ? "Tél: " + esc(p.telephone) : ""}
         </div>
@@ -630,6 +636,7 @@ document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-taille-min").value = "";
   document.getElementById("tf-taille-max").value = "";
   document.getElementById("tf-permis").checked = false;
+  document.getElementById("tf-metier").value = "";
   document.getElementById("tf-competence").value = "";
   document.getElementById("tf-langue").value = "";
   document.getElementById("trombi-results").innerHTML = "";
