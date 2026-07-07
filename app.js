@@ -256,9 +256,12 @@ async function runAiExtraction() {
   status.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
   try {
     const payload = { texte: texte || undefined };
-    if (file && file.type.startsWith("image/")) {
-      payload.imageBase64 = await fileToBase64(file);
-      payload.imageMediaType = file.type;
+    if (file) {
+      payload.nomFichier = file.name;
+      if (file.type.startsWith("image/")) {
+        payload.imageBase64 = await fileToBase64(file);
+        payload.imageMediaType = file.type;
+      }
     }
     const res = await fetch("/api/extract-info", {
       method: "POST",
