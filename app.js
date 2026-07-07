@@ -279,7 +279,7 @@ async function openPersonneModal(id) {
     <div style="display:flex; gap:10px; justify-content:space-between; margin-top:16px;">
       <div>${id ? `<button type="button" class="btn danger" id="btn-delete-personne">Supprimer</button>` : ""}</div>
       <div style="display:flex; gap:10px;">
-        <button type="button" class="btn secondary" onclick="closeModal()">Annuler</button>
+        <button type="button" class="btn secondary" id="btn-cancel-close" onclick="closeModal()">Annuler</button>
         <button type="button" class="btn" id="btn-save-personne">Enregistrer</button>
       </div>
     </div>
@@ -564,6 +564,7 @@ async function savePersonne() {
 
   const photoFile = document.getElementById("f-photo").files[0];
 
+  const wasNew = !state.currentEditingPersonneId;
   let personneId = state.currentEditingPersonneId;
   const saveBtn = document.getElementById("btn-save-personne");
   const originalLabel = saveBtn.textContent;
@@ -602,8 +603,24 @@ async function savePersonne() {
       state.pendingDocsAfterSave = [];
     }
 
-    closeModal();
     await loadPersonnes();
+
+    if (wasNew) {
+      // On garde la fenêtre ouverte pour permettre d'ajouter tout de suite des photos/documents supplémentaires
+      state.currentEditingPersonneId = personneId;
+      document.getElementById("documents-fieldset").style.display = "";
+      await loadDocuments(personneId);
+      document.getElementById("btn-cancel-close").textContent = "Fermer";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Enregistrer les modifications";
+      const statusEl = document.getElementById("ai-extract-status");
+      if (statusEl) statusEl.textContent = "";
+      const resultsBox = document.getElementById("ai-extract-results");
+      if (resultsBox) resultsBox.innerHTML = `<div style="color:var(--green);">✓ Fiche créée. Tu peux maintenant ajouter d'autres photos (portrait, pied, véhicule...) ou documents dans la section "Documents" ci-dessous, puis cliquer "Fermer".</div>`;
+      if (resultsBox) resultsBox.style.display = "block";
+    } else {
+      closeModal();
+    }
   } catch (e) {
     alert("Erreur lors de l'enregistrement : " + e.message);
     saveBtn.disabled = false;
