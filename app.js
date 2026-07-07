@@ -132,6 +132,7 @@ function personneFormFields(p = {}) {
       <button type="button" class="btn secondary" id="btn-ai-extract">✨ Analyser et pré-remplir</button>
       <span id="ai-extract-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
     </div>
+    <div id="ai-extract-results" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:10px 12px; font-size:13px;"></div>
   </div>
 
   <fieldset>
@@ -199,6 +200,11 @@ function personneFormFields(p = {}) {
       <div class="field"><label>Site web</label><input type="text" id="f-site" value="${esc(p.lien_site_web)}"></div>
       <div class="field"><label>Agence</label><input type="text" id="f-agence" value="${esc(p.agence)}"></div>
     </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Expérience &amp; parcours (théâtre, tournages, formations)</legend>
+    <textarea id="f-experience" placeholder="ex : Comédie-Française (2019-2021), tournage 'Les Enfants de la Résistance' (2023), cours Cours Florent..." style="width:100%; min-height:70px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px;">${esc(p.experience_parcours)}</textarea>
   </fieldset>
 
   <fieldset>
@@ -319,6 +325,7 @@ async function runAiExtraction() {
   if (!files.length && !texte) { status.textContent = "Ajoute au moins un fichier ou du texte."; return; }
 
   status.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
+  document.getElementById("ai-extract-results").style.display = "none";
   try {
     const images = []; // {data, mediaType}
     const pdfs = []; // {data}
@@ -361,6 +368,7 @@ async function runAiExtraction() {
     setVal("f-types-permis", d.types_permis); setVal("f-langues", d.langues);
     setVal("f-competences", d.competences_particulieres);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
+    setVal("f-experience", d.experience_parcours);
     setVal("f-notes", d.notes);
     // Reprendre automatiquement la 1ère photo comme photo principale
     if (mainPhotoFile) {
@@ -372,7 +380,29 @@ async function runAiExtraction() {
     }
 
     const nbExtra = state.pendingDocsAfterSave.length;
-    status.textContent = `✓ Champs pré-remplis${mainPhotoFile ? " (photo reprise automatiquement)" : ""}${nbExtra ? ` — ${nbExtra} autre(s) fichier(s) (CV/démo/photos) seront ajoutés aux documents après enregistrement` : ""}. Vérifie avant d'enregistrer.`;
+
+    // Encadré récapitulatif de ce que l'IA a trouvé
+    const resultsBox = document.getElementById("ai-extract-results");
+    const champsTrouves = [];
+    if (d.nom || d.prenom) champsTrouves.push(`<strong>Identité :</strong> ${esc(d.prenom || "")} ${esc(d.nom || "")}`);
+    if (d.taille_cm) champsTrouves.push(`<strong>Taille :</strong> ${d.taille_cm} cm`);
+    if (d.telephone || d.email) champsTrouves.push(`<strong>Contact :</strong> ${esc(d.telephone || "")} ${esc(d.email || "")}`);
+    if (d.permis_conduire) champsTrouves.push(`<strong>Permis :</strong> ${esc(d.types_permis || "oui")}`);
+    if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
+    if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
+    if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
+    if (state.pendingDocsAfterSave.length) {
+      champsTrouves.push(`<strong>Fichiers mis de côté :</strong> ${state.pendingDocsAfterSave.map((x) => esc(x.file.name) + " (" + x.type_document + ")").join(", ")} — seront ajoutés aux documents après enregistrement.`);
+    }
+    if (champsTrouves.length) {
+      resultsBox.style.display = "block";
+      resultsBox.innerHTML = `<div style="color:var(--accent); font-weight:700; margin-bottom:6px;">Ce que l'IA a relevé :</div>` + champsTrouves.map((c) => `<div style="margin-bottom:6px;">${c}</div>`).join("");
+    } else {
+      resultsBox.style.display = "block";
+      resultsBox.innerHTML = `<div style="color:var(--text-muted);">Aucune information exploitable trouvée. Vérifie le fichier ou complète manuellement.</div>`;
+    }
+
+    status.textContent = `✓ Champs pré-remplis${mainPhotoFile ? " (photo reprise automatiquement)" : ""}${nbExtra ? ` — ${nbExtra} fichier(s) en attente` : ""}. Vérifie ci-dessous et dans le formulaire avant d'enregistrer.`;
   } catch (e) {
     status.textContent = "Erreur : " + e.message;
   }
@@ -392,6 +422,7 @@ async function savePersonne() {
     permis_conduire: document.getElementById("f-permis").checked, types_permis: val("f-types-permis"),
     langues: val("f-langues"), competences_particulieres: val("f-competences"),
     lien_showreel: val("f-showreel"), lien_site_web: val("f-site"), agence: val("f-agence"),
+    experience_parcours: val("f-experience"),
     photo_annee: num("f-photo-annee"), notes: val("f-notes"),
     updated_at: new Date().toISOString(),
   };
