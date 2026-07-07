@@ -212,17 +212,31 @@ async function openPersonneModal(id) {
         <div class="field">
           <label>Type</label>
           <select id="doc-type">
+            <option value="photo">Photo</option>
             <option value="cv">CV</option>
             <option value="demo_video">Démo (fichier vidéo)</option>
             <option value="demo_lien">Démo (lien YouTube/Vimeo)</option>
-            <option value="photo">Photo complémentaire</option>
             <option value="autre">Autre</option>
           </select>
         </div>
-        <div class="field"><label>Libellé</label><input type="text" id="doc-libelle" placeholder="ex Book 2025"></div>
+        <div class="field" id="doc-categorie-wrapper">
+          <label>Catégorie de la photo</label>
+          <select id="doc-categorie">
+            <option value="portrait">Portrait</option>
+            <option value="pied">En pied</option>
+            <option value="vehicule">Véhicule</option>
+            <option value="tenue_chic">Tenue chic</option>
+            <option value="animal">Animal</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+        <div class="field"><label>Libellé</label><input type="text" id="doc-libelle" placeholder="ex Peugeot 208 grise, Book 2025..."></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Fichier (si upload)</label><input type="file" id="doc-file"></div>
+        <div class="field" id="doc-file-dropzone" style="border:1px dashed var(--border); border-radius:8px; padding:6px 8px;">
+          <label>Fichier (glisser-déposer ou cliquer)</label>
+          <input type="file" id="doc-file">
+        </div>
         <div class="field"><label>OU lien externe</label><input type="text" id="doc-lien" placeholder="https://..."></div>
       </div>
       <button type="button" class="btn secondary" id="btn-add-doc">+ Ajouter ce document</button>
@@ -242,6 +256,40 @@ async function openPersonneModal(id) {
     loadDocuments(id);
   }
   document.getElementById("btn-ai-extract").addEventListener("click", runAiExtraction);
+
+  // Glisser-déposer sur la zone d'extraction IA et sur le champ photo principal
+  enableDragDrop(document.getElementById("ai-extract-zone"), document.getElementById("ai-file-input"));
+  const photoField = document.getElementById("f-photo").closest(".field");
+  photoField.style.border = "1px dashed var(--border)";
+  photoField.style.borderRadius = "8px";
+  photoField.style.padding = "6px 8px";
+  enableDragDrop(photoField, document.getElementById("f-photo"));
+
+  // Afficher/masquer la catégorie selon le type de document, et activer le glisser-déposer
+  const docTypeSelect = document.getElementById("doc-type");
+  const docCatWrapper = document.getElementById("doc-categorie-wrapper");
+  function toggleDocCategorie() {
+    docCatWrapper.style.display = docTypeSelect.value === "photo" ? "flex" : "none";
+  }
+  docTypeSelect.addEventListener("change", toggleDocCategorie);
+  toggleDocCategorie();
+  enableDragDrop(document.getElementById("doc-file-dropzone"), document.getElementById("doc-file"));
+}
+
+function enableDragDrop(zoneEl, fileInputEl) {
+  if (!zoneEl || !fileInputEl) return;
+  ["dragenter", "dragover"].forEach((evt) =>
+    zoneEl.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.add("dragover"); })
+  );
+  ["dragleave", "drop"].forEach((evt) =>
+    zoneEl.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove("dragover"); })
+  );
+  zoneEl.addEventListener("drop", (e) => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      fileInputEl.files = e.dataTransfer.files;
+      fileInputEl.dispatchEvent(new Event("change"));
+    }
+  });
 }
 
 async function runAiExtraction() {
@@ -354,10 +402,11 @@ async function loadDocuments(personneId) {
 function renderDocuments(docs) {
   const container = document.getElementById("doc-list-container");
   const labels = { cv: "CV", demo_video: "Démo vidéo", demo_lien: "Démo (lien)", photo: "Photo", autre: "Autre" };
+  const catLabels = { portrait: "Portrait", pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
   if (!docs.length) { container.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">Aucun document ajouté.</div>`; return; }
   container.innerHTML = docs.map((d) => `
     <div class="doc-item">
-      <span class="type-tag">${labels[d.type_document] || d.type_document}</span>
+      <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}</span>
       <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
       <button class="btn-icon" onclick="deleteDocument('${d.id}', '${state.currentEditingPersonneId}')">🗑</button>
     </div>
@@ -375,10 +424,11 @@ document.addEventListener("click", async (e) => {
     const libelle = document.getElementById("doc-libelle").value;
     const file = document.getElementById("doc-file").files[0];
     const lien = document.getElementById("doc-lien").value.trim();
+    const categorie_photo = type_document === "photo" ? document.getElementById("doc-categorie").value : null;
     try {
       let fichier_url = null;
-      if (file) fichier_url = await uploadToStorage(file, "documents");
-      await sb.from("documents_personne").insert({ personne_id: personneId, type_document, libelle, fichier_url, lien_externe: lien || null });
+      if (file) fichier_url = await uploadToStorage(file, type_document === "photo" ? "photos" : "documents");
+      await sb.from("documents_personne").insert({ personne_id: personneId, type_document, categorie_photo, libelle, fichier_url, lien_externe: lien || null });
       document.getElementById("doc-libelle").value = "";
       document.getElementById("doc-lien").value = "";
       document.getElementById("doc-file").value = "";
@@ -392,7 +442,18 @@ document.addEventListener("click", async (e) => {
 // ==========================================================
 // ONGLET TROMBINOSCOPE
 // ==========================================================
+document.getElementById("tf-planche").addEventListener("change", () => {
+  const isPortraits = document.getElementById("tf-planche").value === "portraits";
+  document.getElementById("tf-type-wrapper").style.display = isPortraits ? "flex" : "none";
+});
+
 async function generateTrombinoscope() {
+  const planche = document.getElementById("tf-planche").value;
+  if (planche === "portraits") return generateTrombinoscopePortraits();
+  return generateTrombinoscopeCategorie(planche);
+}
+
+async function generateTrombinoscopePortraits() {
   let query = sb.from("personnes").select("*");
   const type = document.getElementById("tf-type").value;
   const tailleMin = document.getElementById("tf-taille-min").value;
@@ -415,9 +476,12 @@ async function generateTrombinoscope() {
   document.getElementById("trombi-count").textContent = `${list.length} personne(s) correspondent aux critères.`;
   const grid = document.getElementById("trombi-results");
   if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucun résultat pour ces critères.</div>`; return; }
-  grid.innerHTML = list.map((p) => `
+  grid.innerHTML = list.map((p) => {
+    // priorité à une photo taguée "portrait" dans les documents si elle existe, sinon photo_url principale
+    const photo = p._portraitUrl || p.photo_url;
+    return `
     <div class="person-card">
-      <div class="photo" style="${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
+      <div class="photo" style="${photo ? `background-image:url('${esc(photo)}')` : ""}">${photo ? "" : "👤"}</div>
       <div class="info">
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="details">
@@ -429,11 +493,41 @@ async function generateTrombinoscope() {
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
       </div>
     </div>
+  `;
+  }).join("");
+}
+
+const PLANCHE_LABELS = { pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
+
+async function generateTrombinoscopeCategorie(categorie) {
+  const { data, error } = await sb
+    .from("documents_personne")
+    .select("*, personnes(id, nom, prenom, type_personne, telephone)")
+    .eq("type_document", "photo")
+    .eq("categorie_photo", categorie)
+    .order("created_at", { ascending: false });
+  if (error) { alert(error.message); return; }
+  const list = data || [];
+
+  document.getElementById("trombi-count").textContent = `${list.length} photo(s) — planche "${PLANCHE_LABELS[categorie] || categorie}".`;
+  const grid = document.getElementById("trombi-results");
+  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune photo dans cette catégorie pour l'instant. Ajoute des photos "${PLANCHE_LABELS[categorie] || categorie}" depuis la fiche d'une personne.</div>`; return; }
+  grid.innerHTML = list.map((d) => `
+    <div class="person-card">
+      <div class="photo" style="${d.fichier_url ? `background-image:url('${esc(d.fichier_url)}')` : ""}">${d.fichier_url ? "" : "🖼"}</div>
+      <div class="info">
+        <div class="name">${d.personnes ? esc(d.personnes.prenom) + " " + esc(d.personnes.nom) : "—"}</div>
+        <div class="details">${esc(d.libelle || "")}</div>
+      </div>
+    </div>
   `).join("");
 }
+
 document.getElementById("btn-trombi-filter").addEventListener("click", generateTrombinoscope);
 document.getElementById("btn-trombi-print").addEventListener("click", () => window.print());
 document.getElementById("btn-trombi-reset").addEventListener("click", () => {
+  document.getElementById("tf-planche").value = "portraits";
+  document.getElementById("tf-type-wrapper").style.display = "flex";
   document.getElementById("tf-type").value = "";
   document.getElementById("tf-taille-min").value = "";
   document.getElementById("tf-taille-max").value = "";
