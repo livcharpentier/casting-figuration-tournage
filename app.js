@@ -106,9 +106,21 @@ function renderPersonnesGrid() {
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" : ""}</div>
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
+        <div style="margin-top:4px;">${photoDateBadgeHtml(p.photo_annee)}</div>
       </div>
     </div>
   `).join("");
+}
+
+function photoDateBadgeHtml(year) {
+  if (!year) return `<span class="badge" style="background:var(--surface-2); color:var(--text-muted);">📅 Année inconnue</span>`;
+  const currentYear = new Date().getFullYear();
+  const age = currentYear - Number(year);
+  let color, bg, label;
+  if (age <= 1) { color = "var(--green)"; bg = "rgba(111,174,122,.18)"; label = "Photo récente"; }
+  else if (age <= 3) { color = "#E0A030"; bg = "rgba(224,160,48,.18)"; label = "À vérifier"; }
+  else { color = "var(--red)"; bg = "rgba(217,105,95,.2)"; label = "⚠ À renouveler"; }
+  return `<span class="badge" style="background:${bg}; color:${color};">📅 ${year} — ${label}</span>`;
 }
 
 const CAT_PHOTO_LABELS = { portrait: "Portrait", pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
@@ -128,13 +140,20 @@ async function openFicheModal(id) {
   const infoLine = (label, val) => val ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br>${esc(val)}</div>` : "";
   const linkLine = (label, url) => url ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br><a href="${esc(url)}" target="_blank" style="color:var(--accent);">${esc(url)}</a></div>` : "";
 
+  const currentPhotoDoc = documents.find((d) => d.type_document === "photo" && d.fichier_url === p.photo_url);
+  const photoYear = (currentPhotoDoc && currentPhotoDoc.annee_photo) || p.photo_annee || null;
+  const photoDateBadge = photoDateBadgeHtml(photoYear);
+
   openModal(`
     <span class="close-x" onclick="closeModal()">✕</span>
     <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
       <div class="photo" style="width:140px; height:180px; border-radius:10px; flex-shrink:0; background-size:contain; background-repeat:no-repeat; background-position:center; background-color:var(--surface-2); ${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
       <div style="flex:1; min-width:200px;">
         <h2 style="margin:0 0 6px;">${esc(p.prenom)} ${esc(p.nom)}</h2>
-        <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
+          ${photoDateBadge}
+        </div>
         <div style="margin-top:10px; font-size:13px; color:var(--text);">
           ${p.taille_cm ? "Taille : " + p.taille_cm + " cm &nbsp;·&nbsp; " : ""}${p.age ? "Âge : " + p.age + " ans" : ""}
           ${p.metier ? `<br>Métier : ${esc(p.metier)}` : ""}
@@ -151,12 +170,19 @@ async function openFicheModal(id) {
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         ${photos.map((d) => {
           const isCurrent = p.photo_url === d.fichier_url;
+          const year = d.annee_photo || (d.id === "principale" ? p.photo_annee : null);
+          let yearColor = "var(--text-muted)";
+          if (year) {
+            const age = new Date().getFullYear() - Number(year);
+            yearColor = age <= 1 ? "var(--green)" : age <= 3 ? "#E0A030" : "var(--red)";
+          }
           return `
           <div style="width:100px;">
             <a href="${esc(d.fichier_url)}" target="_blank" style="text-decoration:none; color:inherit;">
               <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center; ${isCurrent ? "outline:2px solid var(--accent);" : ""}"></div>
             </a>
             <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
+            <div style="font-size:11px; font-weight:700; color:${yearColor}; text-align:center;">${year ? "📅 " + year : "Année ?"}</div>
             ${isCurrent
               ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">★ Photo trombi actuelle</div>`
               : `<button type="button" class="btn-icon" style="font-size:10px; width:100%; text-align:center; margin-top:2px;" onclick="setPhotoTrombi('${p.id}', '${esc(d.fichier_url).replace(/'/g, "\\'")}')">Utiliser pour le trombi</button>`}
@@ -533,6 +559,7 @@ async function openPersonneModal(id) {
           </select>
         </div>
         <div class="field"><label>Libellé</label><input type="text" id="doc-libelle" placeholder="ex Peugeot 208 grise, Book 2025..."></div>
+        <div class="field" id="doc-annee-wrapper"><label>Année de la photo</label><input type="number" id="doc-annee" placeholder="ex 2023"></div>
       </div>
       <div class="field-row">
         <div class="field" id="doc-file-dropzone" style="border:1px dashed var(--border); border-radius:8px; padding:6px 8px;">
@@ -575,11 +602,14 @@ async function openPersonneModal(id) {
   photoField.style.padding = "6px 8px";
   enableDragDrop(photoField, document.getElementById("f-photo"));
 
-  // Afficher/masquer la catégorie selon le type de document, et activer le glisser-déposer
+  // Afficher/masquer la catégorie et l'année selon le type de document, et activer le glisser-déposer
   const docTypeSelect = document.getElementById("doc-type");
   const docCatWrapper = document.getElementById("doc-categorie-wrapper");
+  const docAnneeWrapper = document.getElementById("doc-annee-wrapper");
   function toggleDocCategorie() {
-    docCatWrapper.style.display = docTypeSelect.value === "photo" ? "flex" : "none";
+    const isPhoto = docTypeSelect.value === "photo";
+    docCatWrapper.style.display = isPhoto ? "flex" : "none";
+    docAnneeWrapper.style.display = isPhoto ? "flex" : "none";
   }
   docTypeSelect.addEventListener("change", toggleDocCategorie);
   toggleDocCategorie();
@@ -922,7 +952,7 @@ function renderDocuments(docs) {
   if (!docs.length) { container.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">Aucun document ajouté.</div>`; return; }
   container.innerHTML = docs.map((d) => `
     <div class="doc-item">
-      <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}</span>
+      <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}${d.type_document === "photo" && d.annee_photo ? " · " + d.annee_photo : ""}</span>
       <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
       <button class="btn-icon" onclick="deleteDocument('${d.id}', '${state.currentEditingPersonneId}')">🗑</button>
     </div>
@@ -941,11 +971,13 @@ document.addEventListener("click", async (e) => {
     const file = document.getElementById("doc-file").files[0];
     const lien = document.getElementById("doc-lien").value.trim();
     const categorie_photo = type_document === "photo" ? document.getElementById("doc-categorie").value : null;
+    const annee_photo = type_document === "photo" ? (document.getElementById("doc-annee").value || null) : null;
     try {
       let fichier_url = null;
       if (file) fichier_url = await uploadToStorage(file, type_document === "photo" ? "photos" : "documents");
-      await sb.from("documents_personne").insert({ personne_id: personneId, type_document, categorie_photo, libelle, fichier_url, lien_externe: lien || null });
+      await sb.from("documents_personne").insert({ personne_id: personneId, type_document, categorie_photo, annee_photo, libelle, fichier_url, lien_externe: lien || null });
       document.getElementById("doc-libelle").value = "";
+      document.getElementById("doc-annee").value = "";
       document.getElementById("doc-lien").value = "";
       document.getElementById("doc-file").value = "";
       loadDocuments(personneId);
