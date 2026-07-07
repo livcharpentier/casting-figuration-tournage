@@ -17,9 +17,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { pdfBase64, type } = req.body || {};
-    if (!pdfBase64) {
-      res.status(400).json({ error: 'Aucun fichier PDF fourni.' });
+    const { pdfBase64, texte, type } = req.body || {};
+    if (!pdfBase64 && !texte) {
+      res.status(400).json({ error: 'Aucun fichier ni texte fourni.' });
       return;
     }
 
@@ -54,10 +54,13 @@ Si le scénario contient beaucoup de séquences, extrais-les toutes. Ne pas inve
       return;
     }
 
-    const content = [
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
-      { type: 'text', text: `${contextText}\n\n${schemaDescription}` },
-    ];
+    const content = [];
+    if (pdfBase64) {
+      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } });
+      content.push({ type: 'text', text: `${contextText}\n\n${schemaDescription}` });
+    } else {
+      content.push({ type: 'text', text: `${contextText}\n\nVoici le contenu du fichier (extrait d'un tableur Excel/CSV), une feuille par section :\n\n"""\n${texte}\n"""\n\n${schemaDescription}` });
+    }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
