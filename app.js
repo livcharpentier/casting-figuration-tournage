@@ -283,7 +283,16 @@ async function runAiExtraction() {
     setVal("f-competences", d.competences_particulieres);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
     setVal("f-notes", d.notes);
-    status.textContent = "✓ Champs pré-remplis, vérifie avant d'enregistrer.";
+    // Reprendre automatiquement la photo utilisée pour l'analyse comme photo principale
+    if (file && file.type.startsWith("image/")) {
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        document.getElementById("f-photo").files = dt.files;
+      } catch (e2) { /* navigateur trop ancien, tant pis */ }
+    }
+
+    status.textContent = "✓ Champs pré-remplis (photo reprise automatiquement), vérifie avant d'enregistrer.";
   } catch (e) {
     status.textContent = "Erreur : " + e.message;
   }
