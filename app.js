@@ -352,6 +352,24 @@ function printFiche(p, documents) {
 }
 
 async function setPhotoTrombi(personneId, url) {
+  const p = state.personnes.find((x) => x.id === personneId);
+  const oldUrl = p ? p.photo_url : null;
+
+  // Si l'ancienne photo principale n'est pas déjà sauvegardée comme document, on la conserve avant de la remplacer
+  if (oldUrl && oldUrl !== url) {
+    const { data: existingDocs } = await sb.from("documents_personne").select("id, fichier_url").eq("personne_id", personneId).eq("type_document", "photo");
+    const alreadySaved = (existingDocs || []).some((d) => d.fichier_url === oldUrl);
+    if (!alreadySaved) {
+      await sb.from("documents_personne").insert({
+        personne_id: personneId,
+        type_document: "photo",
+        categorie_photo: "autre",
+        libelle: "Ancienne photo trombi",
+        fichier_url: oldUrl,
+      });
+    }
+  }
+
   const { error } = await sb.from("personnes").update({ photo_url: url, updated_at: new Date().toISOString() }).eq("id", personneId);
   if (error) { alert("Erreur : " + error.message); return; }
   await loadPersonnes();
