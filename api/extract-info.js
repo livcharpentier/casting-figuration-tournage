@@ -19,10 +19,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { imageBase64, imageMediaType, texte } = req.body || {};
+    const { imageBase64, imageMediaType, texte, nomFichier } = req.body || {};
 
-    if (!imageBase64 && !texte) {
-      res.status(400).json({ error: 'Aucune image ni texte fourni.' });
+    if (!imageBase64 && !texte && !nomFichier) {
+      res.status(400).json({ error: 'Aucune image, texte ni fichier fourni.' });
       return;
     }
 
@@ -55,6 +55,12 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
 }`;
 
     const content = [];
+    if (nomFichier) {
+      content.push({
+        type: 'text',
+        text: `Le nom du fichier envoyé contient souvent des informations utiles selon une convention du type "NOM_PRENOM_TAILLE_TYPE_TELEPHONE_EMAIL_ANNEE" (l'ordre et les séparateurs peuvent varier, ex underscores, tirets, points). Analyse ce nom de fichier et extrais-en tout ce qui est exploitable :\n\nNom du fichier : "${nomFichier}"\n\n${schemaDescription}`
+      });
+    }
     if (texte) {
       content.push({
         type: 'text',
