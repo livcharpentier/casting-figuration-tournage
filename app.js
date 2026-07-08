@@ -73,8 +73,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => { loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange); loadJoursDropdown("liste-jour-select", onListeJourChange); loadFilmDocuments(state.currentFilmId); });
-    if (btn.dataset.tab === "hmc") initFilmSelectors().then(() => loadJoursDropdown("hmc-jour-select", onHmcJourChange));
+    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => { loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange); loadFilmDocuments(state.currentFilmId); });
   });
 });
 
@@ -1174,18 +1173,17 @@ function populateFilmSelect(selectId) {
 async function initFilmSelectors() {
   await loadFilms();
   populateFilmSelect("film-select-depouillement");
-  populateFilmSelect("film-select-hmc");
-
   document.getElementById("film-select-depouillement").onchange = (e) => onFilmChange(e.target.value);
-  document.getElementById("film-select-hmc").onchange = (e) => onFilmChange(e.target.value);
+  await loadJoursDropdown("liste-jour-select", onListeJourChange);
+  await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 
 async function onFilmChange(newFilmId) {
   state.currentFilmId = newFilmId;
   localStorage.setItem("castingFiguration_currentFilmId", newFilmId || "");
   document.getElementById("film-select-depouillement").value = newFilmId;
-  document.getElementById("film-select-hmc").value = newFilmId;
   await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
+  await loadJoursDropdown("liste-jour-select", onListeJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
   await loadFilmDocuments(newFilmId);
 }
@@ -1198,11 +1196,9 @@ async function createNouveauFilm() {
   if (error) { alert(error.message); return; }
   await loadFilms();
   populateFilmSelect("film-select-depouillement");
-  populateFilmSelect("film-select-hmc");
   await onFilmChange(data.id);
 }
 document.getElementById("btn-new-film-depouillement").addEventListener("click", createNouveauFilm);
-document.getElementById("btn-new-film-hmc").addEventListener("click", createNouveauFilm);
 
 // ==========================================================
 // DOCUMENTS DU FILM (bible, PDT, scénario)
@@ -1894,7 +1890,9 @@ function initKioskModeIfNeeded() {
   if (params.get("mode") === "hmc" && params.get("jour")) {
     document.body.classList.add("kiosk-active");
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    document.getElementById("tab-hmc").classList.add("active");
+    document.getElementById("tab-depouillement").classList.add("active");
+    document.querySelectorAll(".subtab-panel").forEach((p) => p.classList.remove("active"));
+    document.getElementById("subtab-hmc").classList.add("active");
     const jourId = params.get("jour");
     state.currentHmcJourId = jourId;
     renderHmc(jourId);
