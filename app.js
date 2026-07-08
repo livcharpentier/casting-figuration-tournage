@@ -1301,7 +1301,7 @@ async function analyserDocumentParMorceaux(file, type, statusEl, ajusterPages) {
   if (isExcelOrCsv) {
     const texteComplet = await excelFileToText(file);
     const lignes = texteComplet.split("\n");
-    const LIGNES_PAR_MORCEAU = 80;
+    const LIGNES_PAR_MORCEAU = 40;
 
     if (lignes.length <= LIGNES_PAR_MORCEAU) {
       statusEl.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
@@ -1325,7 +1325,7 @@ async function analyserDocumentParMorceaux(file, type, statusEl, ajusterPages) {
   const arrayBuffer = await file.arrayBuffer();
   const srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
   const totalPages = srcDoc.getPageCount();
-  const CHUNK_SIZE = 4;
+  const CHUNK_SIZE = 2;
   const nbChunks = Math.ceil(totalPages / CHUNK_SIZE);
 
   let tousLesResultats = [];
