@@ -1203,13 +1203,14 @@ async function loadFilmDocuments(filmId) {
   if (!filmId) { listEl.innerHTML = ""; return; }
   const { data } = await sb.from("film_documents").select("*").eq("film_id", filmId).order("created_at", { ascending: false });
   const docs = data || [];
-  const labels = { bible: "📖 Bible", pdt: "📅 PDT", scenario: "🎬 Scénario" };
+  const labels = { bible: "📖 Bible", pdt: "📅 PDT", scenario: "🎬 Scénario", depouillement: "📋 Dépouillement" };
   if (!docs.length) { listEl.innerHTML = `<div style="font-size:12px; color:var(--text-muted);">Aucun document importé pour ce film.</div>`; return; }
   listEl.innerHTML = docs.map((d) => `
     <div class="doc-item">
       <span class="type-tag">${labels[d.type_document] || d.type_document}</span>
       <a href="${esc(d.fichier_url)}" target="_blank">${esc(d.nom_fichier || d.fichier_url)}</a>
       ${d.type_document === "scenario" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="showScenarioContent('${d.id}')">📋 Voir séquences</button>` : ""}
+      ${d.type_document === "depouillement" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="renderDepouillementImportReview(state.filmDocumentsCache.find(x => x.id === '${d.id}').contenu_extrait)">📋 Revoir / réimporter</button>` : ""}
       <button class="btn-icon" onclick="deleteFilmDocument('${d.id}', '${filmId}')">🗑</button>
     </div>
   `).join("");
@@ -1324,6 +1325,100 @@ document.getElementById("upload-scenario").addEventListener("change", async (e) 
     status.textContent = "Erreur : " + err.message;
   }
 });
+
+document.getElementById("upload-depouillement").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
+  const status = document.getElementById("film-documents-status");
+  status.innerHTML = `<span class="spinner"></span> Analyse du dépouillement en cours...`;
+  try {
+    const url = await uploadToStorage(file, "depouillement");
+    const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
+
+    const payload = { type: "depouillement" };
+    if (isExcelOrCsv) {
+      payload.texte = await excelFileToText(file);
+    } else {
+      payload.pdfBase64 = await fileToBase64(file);
+    }
+
+    const res = await fetch("/api/extract-pdt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "depouillement", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
+    status.textContent = `✓ Dépouillement analysé — ${json.extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    await loadJours(); // s'assurer que state.jours est à jour pour faire correspondre les jours
+    renderDepouillementImportReview(json.extracted);
+    await loadFilmDocuments(state.currentFilmId);
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
+function renderDepouillementImportReview(roles) {
+  const container = document.getElementById("depouillement-review-container");
+  if (!roles || !roles.length) { container.style.display = "none"; return; }
+  container.style.display = "block";
+  const roleLabels = Object.fromEntries(ROLE_TYPES.map((r) => [r.value, r.label]));
+  container.innerHTML = `
+    <div class="filter-panel">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie les rôles détectés dans le dépouillement avant de les importer. Les jours doivent déjà exister (crée-les d'abord si besoin) :</div>
+      <table class="role-table">
+        <thead><tr><th><input type="checkbox" id="depo-check-all" checked></th><th>Jour</th><th>Type</th><th>Séquence</th><th>Personnage</th><th>Jour trouvé ?</th></tr></thead>
+        <tbody>
+          ${roles.map((r, i) => {
+            const jourMatch = state.jours.find((j) => j.jour_tournage.toLowerCase() === (r.jour_tournage || "").toLowerCase());
+            return `
+            <tr>
+              <td><input type="checkbox" class="depo-row-check" data-idx="${i}" ${jourMatch ? "checked" : "disabled"}></td>
+              <td>${esc(r.jour_tournage)}</td>
+              <td>${roleLabels[r.type_role] || esc(r.type_role)}</td>
+              <td>${esc(r.sequence)}</td>
+              <td>${esc(r.nom_personnage)}</td>
+              <td>${jourMatch ? "✓" : "⚠ à créer d'abord"}</td>
+            </tr>
+          `;
+          }).join("")}
+        </tbody>
+      </table>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+        <button class="btn secondary" id="btn-depo-cancel">Annuler</button>
+        <button class="btn" id="btn-depo-import">Importer les rôles sélectionnés</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("depo-check-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".depo-row-check:not(:disabled)").forEach((c) => { c.checked = e.target.checked; });
+  });
+  document.getElementById("btn-depo-cancel").addEventListener("click", () => { container.style.display = "none"; container.innerHTML = ""; });
+  document.getElementById("btn-depo-import").addEventListener("click", async () => {
+    const selected = Array.from(document.querySelectorAll(".depo-row-check:checked")).map((c) => roles[Number(c.dataset.idx)]);
+    if (!selected.length) { alert("Sélectionne au moins un rôle."); return; }
+    const btn = document.getElementById("btn-depo-import");
+    btn.disabled = true;
+    btn.textContent = "Import en cours...";
+    let imported = 0;
+    for (const r of selected) {
+      const jourMatch = state.jours.find((j) => j.jour_tournage.toLowerCase() === (r.jour_tournage || "").toLowerCase());
+      if (!jourMatch) continue;
+      await sb.from("depouillement_roles").insert({
+        jour_id: jourMatch.id,
+        type_role: r.type_role,
+        sequence: r.sequence,
+        nom_personnage: r.nom_personnage,
+      });
+      imported++;
+    }
+    container.style.display = "none";
+    container.innerHTML = "";
+    if (state.currentDepouillementJourId) await renderDepouillement(state.currentDepouillementJourId);
+    alert(`${imported} rôle(s) importé(s) avec succès.`);
+  });
+}
 
 function renderPdtReview(jours) {
   const container = document.getElementById("pdt-review-container");
