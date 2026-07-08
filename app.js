@@ -1299,16 +1299,33 @@ async function analyserDocumentParMorceaux(file, type, statusEl, ajusterPages) {
   const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
 
   if (isExcelOrCsv) {
-    statusEl.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
-    const texte = await excelFileToText(file);
-    return await callExtractPdtApi({ type, texte });
+    const texteComplet = await excelFileToText(file);
+    const lignes = texteComplet.split("\n");
+    const LIGNES_PAR_MORCEAU = 80;
+
+    if (lignes.length <= LIGNES_PAR_MORCEAU) {
+      statusEl.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
+      return await callExtractPdtApi({ type, texte: texteComplet });
+    }
+
+    const nbMorceaux = Math.ceil(lignes.length / LIGNES_PAR_MORCEAU);
+    let tousLesResultatsExcel = [];
+    for (let c = 0; c < nbMorceaux; c++) {
+      const debut = c * LIGNES_PAR_MORCEAU;
+      const fin = Math.min(debut + LIGNES_PAR_MORCEAU, lignes.length);
+      statusEl.innerHTML = `<span class="spinner"></span> Analyse : lignes ${debut + 1} à ${fin} sur ${lignes.length}...`;
+      const morceauTexte = lignes.slice(debut, fin).join("\n");
+      const resultats = await callExtractPdtApi({ type, texte: morceauTexte });
+      tousLesResultatsExcel = tousLesResultatsExcel.concat(resultats);
+    }
+    return tousLesResultatsExcel;
   }
 
   // PDF : découpage en petits morceaux de pages pour rester sous la limite de temps du serveur
   const arrayBuffer = await file.arrayBuffer();
   const srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
   const totalPages = srcDoc.getPageCount();
-  const CHUNK_SIZE = 6;
+  const CHUNK_SIZE = 4;
   const nbChunks = Math.ceil(totalPages / CHUNK_SIZE);
 
   let tousLesResultats = [];
