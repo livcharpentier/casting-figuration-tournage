@@ -45,10 +45,12 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   {
     "numero": "",   // numéro de séquence tel qu'indiqué (ex "12", "SEQ 12")
     "decor": "",    // lieu/décor de la séquence (ex "INT. CUISINE - JOUR")
-    "resume": ""    // résumé très court de ce qui se passe dans la séquence (1 phrase max)
+    "resume": "",   // résumé très court de ce qui se passe dans la séquence (1 phrase max)
+    "page_debut": null,  // numéro de PAGE du PDF (1 = première page du document) où COMMENCE cette séquence. Très important, à déterminer précisément en comptant les pages du document.
+    "page_fin": null     // numéro de page du PDF où SE TERMINE cette séquence (identique à page_debut si elle tient sur une seule page)
   }
 ]
-Si le scénario contient beaucoup de séquences, extrais-les toutes. Ne pas inventer de séquences absentes du document.`;
+Si le scénario contient beaucoup de séquences, extrais-les toutes. Ne pas inventer de séquences absentes du document. Les numéros de page sont essentiels et doivent correspondre à la pagination réelle du PDF fourni.`;
     } else if (type === 'depouillement') {
       contextText = `Voici un document de dépouillement de figuration pour un tournage de film (liste des silhouettes, silhouettes parlantes, enfants, cascadeurs, petits rôles nécessaires par jour de tournage).`;
       schemaDescription = `
