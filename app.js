@@ -73,8 +73,17 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => { loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange); loadFilmDocuments(state.currentFilmId); });
+    if (btn.dataset.tab === "depouillement") initFilmSelectors().then(() => { loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange); loadJoursDropdown("liste-jour-select", onListeJourChange); loadFilmDocuments(state.currentFilmId); });
     if (btn.dataset.tab === "hmc") initFilmSelectors().then(() => loadJoursDropdown("hmc-jour-select", onHmcJourChange));
+  });
+});
+
+document.querySelectorAll(".subtab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".subtab-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".subtab-panel").forEach((p) => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("subtab-" + btn.dataset.subtab).classList.add("active");
   });
 });
 
@@ -1516,6 +1525,50 @@ async function onDepouillementJourChange(jourId) {
   await renderDepouillement(jourId);
 }
 
+async function onListeJourChange(jourId) {
+  const container = document.getElementById("liste-jour-content");
+  if (!jourId) { container.innerHTML = `<div class="empty-state"><div class="big">👥</div>Choisis un jour de tournage.</div>`; return; }
+  await renderListeJour(jourId);
+}
+
+async function renderListeJour(jourId) {
+  const container = document.getElementById("liste-jour-content");
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+  if (!list.length) { container.innerHTML = `<div class="empty-state">Aucune personne castée pour ce jour pour l'instant (va dans "Dépouillement" pour en ajouter).</div>`; return; }
+
+  container.innerHTML = `
+    <table class="hmc-table">
+      <thead><tr><th>Nom</th><th>Prénom</th><th>Tél</th><th>Mail</th><th>Rôle</th><th>Notes</th></tr></thead>
+      <tbody id="liste-jour-tbody">
+        ${list.map((r) => {
+          let nom = "", prenom = "", tel = "", mail = "";
+          if (r.personne_id) {
+            const p = state.personnes.find((x) => x.id === r.personne_id);
+            if (p) { nom = p.nom; prenom = p.prenom; tel = p.telephone || ""; mail = p.email || ""; }
+          }
+          if (!nom && !prenom) prenom = r.nom_personnage || "";
+          return `
+          <tr id="liste-row-${r.id}">
+            <td>${esc(nom)}</td>
+            <td>${esc(prenom)}</td>
+            <td>${esc(tel)}</td>
+            <td>${esc(mail)}</td>
+            <td>${esc(r.nom_personnage)}</td>
+            <td><input type="text" class="liste-note-input" data-id="${r.id}" value="${esc(r.commentaire)}" placeholder="note libre..." style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 8px; font-size:13px;"></td>
+          </tr>
+        `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+  document.querySelectorAll(".liste-note-input").forEach((input) => {
+    input.addEventListener("blur", async () => {
+      await sb.from("depouillement_roles").update({ commentaire: input.value }).eq("id", input.dataset.id);
+    });
+  });
+}
+
 async function renderDepouillement(jourId) {
   const container = document.getElementById("depouillement-content");
   const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
@@ -1670,6 +1723,15 @@ async function syncHmcFromDepouillement() {
   await renderHmc(jourId);
 }
 document.getElementById("btn-hmc-sync").addEventListener("click", syncHmcFromDepouillement);
+document.getElementById("btn-hmc-share-link").addEventListener("click", () => {
+  if (!state.currentHmcJourId) { alert("Choisis d'abord un jour de tournage."); return; }
+  const url = `${window.location.origin}${window.location.pathname}?mode=hmc&jour=${state.currentHmcJourId}`;
+  navigator.clipboard.writeText(url).then(() => {
+    alert("Lien copié dans le presse-papier ✓\n\nEnvoie-le aux assistants habillage/coiffure/maquillage — ils n'auront accès qu'à cette checklist, sans le reste de l'appli.\n\n" + url);
+  }).catch(() => {
+    prompt("Copie ce lien pour les assistants :", url);
+  });
+});
 
 async function renderHmc(jourId) {
   const { data, error } = await sb.from("hmc_checklist").select("*").eq("jour_id", jourId).order("nom");
@@ -1741,10 +1803,29 @@ function subscribeHmcRealtime(jourId) {
 }
 
 // ==========================================================
+// MODE KIOSQUE HMC (accès restreint pour les assistants habillage/coiffure/maquillage)
+// ==========================================================
+function initKioskModeIfNeeded() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("mode") === "hmc" && params.get("jour")) {
+    document.body.classList.add("kiosk-active");
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+    document.getElementById("tab-hmc").classList.add("active");
+    const jourId = params.get("jour");
+    state.currentHmcJourId = jourId;
+    renderHmc(jourId);
+    subscribeHmcRealtime(jourId);
+    return true;
+  }
+  return false;
+}
+
+// ==========================================================
 // INIT
 // ==========================================================
 (async function init() {
   await loadPersonnes();
   await loadFilms();
   await loadJours();
+  initKioskModeIfNeeded();
 })();
