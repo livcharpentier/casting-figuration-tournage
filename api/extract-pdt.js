@@ -49,8 +49,21 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Si le scénario contient beaucoup de séquences, extrais-les toutes. Ne pas inventer de séquences absentes du document.`;
+    } else if (type === 'depouillement') {
+      contextText = `Voici un document de dépouillement de figuration pour un tournage de film (liste des silhouettes, silhouettes parlantes, enfants, cascadeurs, petits rôles nécessaires par jour de tournage).`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balises markdown), où chaque élément représente un rôle de figuration à caster avec exactement ces clés :
+[
+  {
+    "jour_tournage": "",     // jour de tournage concerné, ex "J1", "J20" (tel qu'indiqué dans le document)
+    "type_role": "",         // une seule valeur parmi : silhouette, silhouette_parlante, enfant, cascadeur, petit_role (déduis la plus proche si le document utilise un autre mot)
+    "sequence": "",          // numéro(s) de séquence concernée(s)
+    "nom_personnage": ""     // nom ou description du personnage/rôle (ex "Passant n°3", "Infirmière")
+  }
+]
+Si le document contient beaucoup de lignes, extrais-les toutes. Ne pas inventer de lignes absentes du document.`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt' ou 'scenario'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario' ou 'depouillement'." });
       return;
     }
 
