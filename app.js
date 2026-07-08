@@ -106,14 +106,14 @@ function renderPersonnesGrid() {
   if (typeFilter) list = list.filter((p) => p.type_personne === typeFilter);
 
   if (!list.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">🎬</div>Aucune personne trouvée.</div>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune personne trouvée.</div>`;
     return;
   }
   grid.innerHTML = list.map((p) => `
     <div class="person-card" onclick="openFicheModal('${p.id}')" style="position:relative;">
-      <button class="btn-icon" title="Modifier" onclick="event.stopPropagation(); openPersonneModal('${p.id}')" style="position:absolute; top:6px; left:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2;">✏️</button>
-      <button class="btn-icon" title="Supprimer" onclick="event.stopPropagation(); quickDeletePersonne('${p.id}')" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2;">🗑</button>
-      <div class="photo" style="${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
+      <button class="btn-icon" title="Modifier" onclick="event.stopPropagation(); openPersonneModal('${p.id}')" style="position:absolute; top:6px; left:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2; font-size:11px; padding:4px 8px;">Modifier</button>
+      <button class="btn-icon" title="Supprimer" onclick="event.stopPropagation(); quickDeletePersonne('${p.id}')" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,.55); border-radius:6px; z-index:2; font-size:11px; padding:4px 8px;">Supprimer</button>
+      <div class="photo" style="${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : ""}</div>
       <div class="info">
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" : ""}</div>
@@ -125,14 +125,14 @@ function renderPersonnesGrid() {
 }
 
 function photoDateBadgeHtml(year) {
-  if (!year) return `<span class="badge" style="background:var(--surface-2); color:var(--text-muted);">📅 Année inconnue</span>`;
+  if (!year) return `<span class="badge" style="background:var(--surface-2); color:var(--text-muted);">Année inconnue</span>`;
   const currentYear = new Date().getFullYear();
   const age = currentYear - Number(year);
   let color, bg, label;
   if (age <= 1) { color = "var(--green)"; bg = "rgba(111,174,122,.18)"; label = "Photo récente"; }
   else if (age <= 3) { color = "#E0A030"; bg = "rgba(224,160,48,.18)"; label = "À vérifier"; }
-  else { color = "var(--red)"; bg = "rgba(217,105,95,.2)"; label = "⚠ À renouveler"; }
-  return `<span class="badge" style="background:${bg}; color:${color};">📅 ${year} — ${label}</span>`;
+  else { color = "var(--red)"; bg = "rgba(217,105,95,.2)"; label = "Attention : À renouveler"; }
+  return `<span class="badge" style="background:${bg}; color:${color};">${year} — ${label}</span>`;
 }
 
 const CAT_PHOTO_LABELS = { portrait: "Portrait", pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
@@ -157,9 +157,9 @@ async function openFicheModal(id) {
   const photoDateBadge = photoDateBadgeHtml(photoYear);
 
   openModal(`
-    <span class="close-x" onclick="closeModal()">✕</span>
+    <span class="close-x" onclick="closeModal()">×</span>
     <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
-      <div class="photo" style="width:140px; height:180px; border-radius:10px; flex-shrink:0; background-size:contain; background-repeat:no-repeat; background-position:center; background-color:var(--surface-2); ${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : "👤"}</div>
+      <div class="photo" style="width:140px; height:180px; border-radius:10px; flex-shrink:0; background-size:contain; background-repeat:no-repeat; background-position:center; background-color:var(--surface-2); ${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : ""}</div>
       <div style="flex:1; min-width:200px;">
         <h2 style="margin:0 0 6px;">${esc(p.prenom)} ${esc(p.nom)}</h2>
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
@@ -194,9 +194,9 @@ async function openFicheModal(id) {
               <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center; ${isCurrent ? "outline:2px solid var(--accent);" : ""}"></div>
             </a>
             <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
-            <div style="font-size:11px; font-weight:700; color:${yearColor}; text-align:center;">${year ? "📅 " + year : "Année ?"}</div>
+            <div style="font-size:11px; font-weight:700; color:${yearColor}; text-align:center;">${year ? "" + year : "Année ?"}</div>
             ${isCurrent
-              ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">★ Photo trombi actuelle</div>`
+              ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">Photo trombi actuelle</div>`
               : `<button type="button" class="btn-icon" style="font-size:10px; width:100%; text-align:center; margin-top:2px;" onclick="setPhotoTrombi('${p.id}', '${esc(d.fichier_url).replace(/'/g, "\\'")}')">Utiliser pour le trombi</button>`}
           </div>
         `;
@@ -256,11 +256,11 @@ async function openFicheModal(id) {
     </fieldset>` : ""}
 
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px; flex-wrap:wrap;">
-      <button class="btn secondary" id="btn-fiche-print">🖨 Imprimer</button>
-      <button class="btn secondary" id="btn-fiche-email">✉️ Email</button>
-      <button class="btn secondary" id="btn-fiche-whatsapp">💬 WhatsApp</button>
+      <button class="btn secondary" id="btn-fiche-print">Imprimer</button>
+      <button class="btn secondary" id="btn-fiche-email">Email</button>
+      <button class="btn secondary" id="btn-fiche-whatsapp">WhatsApp</button>
       <button class="btn secondary" onclick="closeModal()">Fermer</button>
-      <button class="btn" onclick="closeModal(); openPersonneModal('${p.id}')">✏️ Modifier</button>
+      <button class="btn" onclick="closeModal(); openPersonneModal('${p.id}')">Modifier</button>
     </div>
   `);
 
@@ -439,13 +439,13 @@ function personneFormFields(p = {}) {
         <div id="cv-crop-box" style="position:absolute; border:2px dashed var(--accent); background:rgba(232,185,74,.15); display:none; pointer-events:none;"></div>
       </div>
       <div style="margin-top:8px;">
-        <button type="button" class="btn secondary" id="btn-use-crop">📷 Utiliser cette zone comme photo</button>
+        <button type="button" class="btn secondary" id="btn-use-crop">Utiliser cette zone comme photo</button>
         <span id="cv-crop-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
       </div>
     </div>
     <textarea id="ai-text-input" placeholder="Ou colle ici le texte du mail à analyser..."></textarea>
     <div style="margin-top:8px;">
-      <button type="button" class="btn secondary" id="btn-ai-extract">✨ Analyser et pré-remplir</button>
+      <button type="button" class="btn secondary" id="btn-ai-extract">Analyser et pré-remplir</button>
       <span id="ai-extract-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
     </div>
     <div id="ai-extract-results" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:10px 12px; font-size:13px;"></div>
@@ -542,7 +542,7 @@ async function openPersonneModal(id) {
   if (id) p = state.personnes.find((x) => x.id === id) || {};
 
   openModal(`
-    <span class="close-x" onclick="closeModal()">✕</span>
+    <span class="close-x" onclick="closeModal()">×</span>
     <h2>${id ? "Modifier" : "Ajouter"} une personne</h2>
     ${personneFormFields(p)}
     <fieldset id="documents-fieldset" style="${id ? "" : "display:none;"}">
@@ -718,7 +718,7 @@ document.addEventListener("click", async (e) => {
         const dt = new DataTransfer();
         dt.items.add(photoFile);
         document.getElementById("f-photo").files = dt.files;
-        status.textContent = "✓ Photo découpée reprise comme photo principale.";
+        status.textContent = "Photo découpée reprise comme photo principale.";
       } catch (e2) {
         status.textContent = "Erreur : navigateur non compatible.";
       }
@@ -841,7 +841,7 @@ async function runAiExtraction() {
       champsTrouves.push(`<strong>Fichiers mis de côté :</strong> ${state.pendingDocsAfterSave.map((x) => esc(x.file.name) + " (" + x.type_document + ")").join(", ")} — seront ajoutés aux documents après enregistrement.`);
     }
     if (unreadableFiles.length) {
-      champsTrouves.push(`<span style="color:var(--red);">⚠ Format non lisible par l'IA :</span> ${unreadableFiles.map(esc).join(", ")} — seul le nom du fichier a pu être analysé. Convertis-le en PDF (Fichier → Exporter/Imprimer en PDF) pour que le contenu (théâtre, tournages, formations) soit vraiment lu.`);
+      champsTrouves.push(`<span style="color:var(--red);">Attention : Format non lisible par l'IA :</span> ${unreadableFiles.map(esc).join(", ")} — seul le nom du fichier a pu être analysé. Convertis-le en PDF (Fichier → Exporter/Imprimer en PDF) pour que le contenu (théâtre, tournages, formations) soit vraiment lu.`);
     }
     if (champsTrouves.length) {
       resultsBox.style.display = "block";
@@ -851,7 +851,7 @@ async function runAiExtraction() {
       resultsBox.innerHTML = `<div style="color:var(--text-muted);">Aucune information exploitable trouvée. Vérifie le fichier ou complète manuellement.</div>`;
     }
 
-    status.textContent = `✓ Champs pré-remplis${mainPhotoFile ? " (photo reprise automatiquement)" : ""}${nbExtra ? ` — ${nbExtra} fichier(s) en attente` : ""}. Vérifie ci-dessous et dans le formulaire avant d'enregistrer.`;
+    status.textContent = `Champs pré-remplis${mainPhotoFile ? " (photo reprise automatiquement)" : ""}${nbExtra ? ` — ${nbExtra} fichier(s) en attente` : ""}. Vérifie ci-dessous et dans le formulaire avant d'enregistrer.`;
   } catch (e) {
     status.textContent = "Erreur : " + e.message;
   }
@@ -933,7 +933,7 @@ async function savePersonne() {
       const statusEl = document.getElementById("ai-extract-status");
       if (statusEl) statusEl.textContent = "";
       const resultsBox = document.getElementById("ai-extract-results");
-      if (resultsBox) resultsBox.innerHTML = `<div style="color:var(--green);">✓ Fiche créée. Tu peux maintenant ajouter d'autres photos (portrait, pied, véhicule...) ou documents dans la section "Documents" ci-dessous, puis cliquer "Fermer".</div>`;
+      if (resultsBox) resultsBox.innerHTML = `<div style="color:var(--green);">Fiche créée. Tu peux maintenant ajouter d'autres photos (portrait, pied, véhicule...) ou documents dans la section "Documents" ci-dessous, puis cliquer "Fermer".</div>`;
       if (resultsBox) resultsBox.style.display = "block";
     } else {
       closeModal();
@@ -966,7 +966,7 @@ function renderDocuments(docs) {
     <div class="doc-item">
       <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}${d.type_document === "photo" && d.annee_photo ? " · " + d.annee_photo : ""}</span>
       <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
-      <button class="btn-icon" onclick="deleteDocument('${d.id}', '${state.currentEditingPersonneId}')">🗑</button>
+      <button class="btn-icon" onclick="deleteDocument('${d.id}', '${state.currentEditingPersonneId}')">Supprimer</button>
     </div>
   `).join("");
 }
@@ -1070,7 +1070,7 @@ async function generateTrombinoscopePortraits() {
     const photo = p._portraitUrl || p.photo_url;
     return `
     <div class="person-card">
-      <div class="photo" style="${photo ? `background-image:url('${esc(photo)}')` : ""}">${photo ? "" : "👤"}</div>
+      <div class="photo" style="${photo ? `background-image:url('${esc(photo)}')` : ""}">${photo ? "" : ""}</div>
       <div class="info">
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="details">
@@ -1108,7 +1108,7 @@ async function generateTrombinoscopeCategorie(categorie) {
   }));
   grid.innerHTML = list.map((d) => `
     <div class="person-card">
-      <div class="photo" style="${d.fichier_url ? `background-image:url('${esc(d.fichier_url)}')` : ""}">${d.fichier_url ? "" : "🖼"}</div>
+      <div class="photo" style="${d.fichier_url ? `background-image:url('${esc(d.fichier_url)}')` : ""}">${d.fichier_url ? "" : ""}</div>
       <div class="info">
         <div class="name">${d.personnes ? esc(d.personnes.prenom) + " " + esc(d.personnes.nom) : "—"}</div>
         <div class="details">${esc(d.libelle || "")}</div>
@@ -1212,15 +1212,15 @@ async function loadFilmDocuments(filmId) {
   if (!filmId) { listEl.innerHTML = ""; return; }
   const { data } = await sb.from("film_documents").select("*").eq("film_id", filmId).order("created_at", { ascending: false });
   const docs = data || [];
-  const labels = { bible: "📖 Bible", pdt: "📅 PDT", scenario: "🎬 Scénario", depouillement: "📋 Dépouillement" };
+  const labels = { bible: "Bible", pdt: "PDT", scenario: "Scénario", depouillement: "Dépouillement" };
   if (!docs.length) { listEl.innerHTML = `<div style="font-size:12px; color:var(--text-muted);">Aucun document importé pour ce film.</div>`; return; }
   listEl.innerHTML = docs.map((d) => `
     <div class="doc-item">
       <span class="type-tag">${labels[d.type_document] || d.type_document}</span>
       <a href="${esc(d.fichier_url)}" target="_blank">${esc(d.nom_fichier || d.fichier_url)}</a>
-      ${d.type_document === "scenario" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="showScenarioContent('${d.id}')">📋 Voir séquences</button>` : ""}
-      ${d.type_document === "depouillement" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="renderDepouillementImportReview(state.filmDocumentsCache.find(x => x.id === '${d.id}').contenu_extrait)">📋 Revoir / réimporter</button>` : ""}
-      <button class="btn-icon" onclick="deleteFilmDocument('${d.id}', '${filmId}')">🗑</button>
+      ${d.type_document === "scenario" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="showScenarioContent('${d.id}')">Voir séquences</button>` : ""}
+      ${d.type_document === "depouillement" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="renderDepouillementImportReview(state.filmDocumentsCache.find(x => x.id === '${d.id}').contenu_extrait)">Revoir / réimporter</button>` : ""}
+      <button class="btn-icon" onclick="deleteFilmDocument('${d.id}', '${filmId}')">Supprimer</button>
     </div>
   `).join("");
   // stocker pour affichage rapide du contenu extrait
@@ -1238,7 +1238,7 @@ function showScenarioContent(docId) {
   if (!doc || !doc.contenu_extrait) return;
   const sequences = doc.contenu_extrait;
   openModal(`
-    <span class="close-x" onclick="closeModal()">✕</span>
+    <span class="close-x" onclick="closeModal()">×</span>
     <h2>Séquences extraites du scénario</h2>
     <table class="role-table">
       <thead><tr><th>N°</th><th>Décor</th><th>Résumé</th></tr></thead>
@@ -1260,7 +1260,7 @@ document.getElementById("upload-bible").addEventListener("change", async (e) => 
   try {
     const url = await uploadToStorage(file, "bible");
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "bible", nom_fichier: file.name, fichier_url: url });
-    status.textContent = "✓ Bible importée.";
+    status.textContent = "Bible importée.";
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
     status.textContent = "Erreur : " + err.message;
@@ -1291,7 +1291,7 @@ document.getElementById("upload-pdt").addEventListener("change", async (e) => {
     const json = await res.json();
     if (json.error) { status.textContent = "Erreur : " + json.error; return; }
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "pdt", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `✓ PDT analysé — ${json.extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    status.textContent = `PDT analysé — ${json.extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
     renderPdtReview(json.extracted);
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
@@ -1328,7 +1328,7 @@ document.getElementById("upload-scenario").addEventListener("change", async (e) 
     const json = await res.json();
     if (json.error) { status.textContent = "Erreur : " + json.error; return; }
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "scenario", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `✓ Scénario analysé — ${json.extracted.length} séquence(s) trouvée(s). Clique "📋 Voir séquences" dans la liste ci-dessous pour les consulter.`;
+    status.textContent = `Scénario analysé — ${json.extracted.length} séquence(s) trouvée(s). Clique "Voir séquences" dans la liste ci-dessous pour les consulter.`;
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
     status.textContent = "Erreur : " + err.message;
@@ -1359,7 +1359,7 @@ document.getElementById("upload-depouillement").addEventListener("change", async
     const json = await res.json();
     if (json.error) { status.textContent = "Erreur : " + json.error; return; }
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "depouillement", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `✓ Dépouillement analysé — ${json.extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    status.textContent = `Dépouillement analysé — ${json.extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
     await loadJours(); // s'assurer que state.jours est à jour pour faire correspondre les jours
     renderDepouillementImportReview(json.extracted);
     await loadFilmDocuments(state.currentFilmId);
@@ -1388,7 +1388,7 @@ function renderDepouillementImportReview(roles) {
               <td>${roleLabels[r.type_role] || esc(r.type_role)}</td>
               <td>${esc(r.sequence)}</td>
               <td>${esc(r.nom_personnage)}</td>
-              <td>${jourMatch ? "✓" : "⚠ à créer d'abord"}</td>
+              <td>${jourMatch ? "✓" : "Attention : à créer d'abord"}</td>
             </tr>
           `;
           }).join("")}
@@ -1521,7 +1521,7 @@ document.getElementById("btn-new-jour").addEventListener("click", createNouveauJ
 async function onDepouillementJourChange(jourId) {
   state.currentDepouillementJourId = jourId || null;
   const container = document.getElementById("depouillement-content");
-  if (!jourId) { container.innerHTML = `<div class="empty-state"><div class="big">🎬</div>Choisis ou crée un jour de tournage.</div>`; return; }
+  if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis ou crée un jour de tournage.</div>`; return; }
   await renderDepouillement(jourId);
 }
 
@@ -1628,15 +1628,15 @@ async function generateSequencesJourPdf() {
     const file = new File([blob], `Sequences_${jour.jour_tournage}.pdf`, { type: "application/pdf" });
     const url = await uploadToStorage(file, "sequences-jour");
 
-    status.innerHTML = `✓ Séquences du jour ${esc(jour.jour_tournage)} générées (${validIndices.length} page(s)) — <a href="${url}" target="_blank" style="color:var(--accent);">voir le PDF</a>`;
+    status.innerHTML = `Séquences du jour ${esc(jour.jour_tournage)} générées (${validIndices.length} page(s)) — <a href="${url}" target="_blank" style="color:var(--accent);">voir le PDF</a>`;
 
     // Proposer l'envoi
     const container = document.getElementById("liste-jour-content");
     const shareBar = document.createElement("div");
     shareBar.style.cssText = "margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;";
     shareBar.innerHTML = `
-      <button class="btn secondary" id="btn-seq-email">✉️ Envoyer par email</button>
-      <button class="btn secondary" id="btn-seq-whatsapp">💬 Envoyer par WhatsApp</button>
+      <button class="btn secondary" id="btn-seq-email">Envoyer par email</button>
+      <button class="btn secondary" id="btn-seq-whatsapp">Envoyer par WhatsApp</button>
     `;
     container.prepend(shareBar);
     document.getElementById("btn-seq-email").addEventListener("click", () => {
@@ -1681,7 +1681,7 @@ function renderRoleSection(roleType, roles) {
               <td>${r.personne_id ? esc(personneNom(r.personne_id)) : "<em>non assigné</em>"}</td>
               <td>${r.age_snapshot ?? ""}</td>
               <td>${r.taille_snapshot ? r.taille_snapshot + " cm" : ""}</td>
-              <td><button class="btn-icon" onclick="deleteRole('${r.id}')">🗑</button></td>
+              <td><button class="btn-icon" onclick="deleteRole('${r.id}')">Supprimer</button></td>
             </tr>
           `).join("")}
         </tbody>
@@ -1698,7 +1698,7 @@ function personneNom(id) {
 async function openRoleModal(typeRole) {
   if (!state.personnes.length) await loadPersonnes();
   openModal(`
-    <span class="close-x" onclick="closeModal()">✕</span>
+    <span class="close-x" onclick="closeModal()">×</span>
     <h2>Ajouter — ${ROLE_TYPES.find((r) => r.value === typeRole).label}</h2>
     <div class="field-row">
       <div class="field"><label>Nom du personnage</label><input type="text" id="r-nom-personnage" placeholder="ex Passant n°3"></div>
@@ -1779,7 +1779,7 @@ async function onHmcJourChange(jourId) {
   state.currentHmcJourId = jourId || null;
   if (state.hmcRealtimeChannel) { sb.removeChannel(state.hmcRealtimeChannel); state.hmcRealtimeChannel = null; }
   const container = document.getElementById("hmc-content");
-  if (!jourId) { container.innerHTML = `<div class="empty-state"><div class="big">✂️</div>Choisis un jour de tournage.</div>`; return; }
+  if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis un jour de tournage.</div>`; return; }
   await renderHmc(jourId);
   subscribeHmcRealtime(jourId);
 }
@@ -1811,7 +1811,7 @@ document.getElementById("btn-hmc-share-link").addEventListener("click", () => {
   if (!state.currentHmcJourId) { alert("Choisis d'abord un jour de tournage."); return; }
   const url = `${window.location.origin}${window.location.pathname}?mode=hmc&jour=${state.currentHmcJourId}`;
   navigator.clipboard.writeText(url).then(() => {
-    alert("Lien copié dans le presse-papier ✓\n\nEnvoie-le aux assistants habillage/coiffure/maquillage — ils n'auront accès qu'à cette checklist, sans le reste de l'appli.\n\n" + url);
+    alert("Lien copié dans le presse-papier.\n\nEnvoie-le aux assistants habillage/coiffure/maquillage — ils n'auront accès qu'à cette checklist, sans le reste de l'appli.\n\n" + url);
   }).catch(() => {
     prompt("Copie ce lien pour les assistants :", url);
   });
@@ -1826,7 +1826,7 @@ async function renderHmc(jourId) {
 function renderHmcTable(rows) {
   const container = document.getElementById("hmc-content");
   if (!rows.length) {
-    container.innerHTML = `<div class="empty-state"><div class="big">✂️</div>Aucune personne dans la checklist. Clique sur "Synchroniser depuis le dépouillement".</div>`;
+    container.innerHTML = `<div class="empty-state">Aucune personne dans la checklist. Clique sur "Synchroniser depuis le dépouillement".</div>`;
     return;
   }
   container.innerHTML = `
