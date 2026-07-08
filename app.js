@@ -1313,19 +1313,47 @@ document.getElementById("upload-scenario").addEventListener("change", async (e) 
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
-  status.innerHTML = `<span class="spinner"></span> Analyse du scénario en cours (peut prendre 1-2 min sur un long scénario)...`;
   try {
     const url = await uploadToStorage(file, "scenario");
-    const pdfBase64 = await fileToBase64(file);
-    const res = await fetch("/api/extract-pdt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pdfBase64, type: "scenario" }),
-    });
-    const json = await res.json();
-    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
-    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "scenario", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `Scénario analysé — ${json.extracted.length} séquence(s) trouvée(s). Clique "Voir séquences" dans la liste ci-dessous pour les consulter.`;
+    const arrayBuffer = await file.arrayBuffer();
+    const srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    const totalPages = srcDoc.getPageCount();
+    const CHUNK_SIZE = 6; // pages par appel, pour rester sous la limite de temps du serveur
+    const nbChunks = Math.ceil(totalPages / CHUNK_SIZE);
+
+    let toutesLesSequences = [];
+    for (let c = 0; c < nbChunks; c++) {
+      const startPage = c * CHUNK_SIZE; // 0-indexé
+      const endPage = Math.min(startPage + CHUNK_SIZE, totalPages);
+      status.innerHTML = `<span class="spinner"></span> Analyse du scénario : pages ${startPage + 1} à ${endPage} sur ${totalPages}...`;
+
+      const chunkDoc = await PDFLib.PDFDocument.create();
+      const indices = [];
+      for (let p = startPage; p < endPage; p++) indices.push(p);
+      const copiedPages = await chunkDoc.copyPages(srcDoc, indices);
+      copiedPages.forEach((p) => chunkDoc.addPage(p));
+      const chunkBytes = await chunkDoc.save();
+      const chunkBase64 = btoa(String.fromCharCode(...new Uint8Array(chunkBytes)));
+
+      const res = await fetch("/api/extract-pdt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfBase64: chunkBase64, type: "scenario" }),
+      });
+      const json = await res.json();
+      if (json.error) { status.textContent = `Erreur sur les pages ${startPage + 1}-${endPage} : ${json.error}`; return; }
+
+      // Recaler les numéros de page (relatifs au morceau) sur la pagination réelle du document complet
+      const sequencesAjustees = (json.extracted || []).map((s) => ({
+        ...s,
+        page_debut: s.page_debut ? Number(s.page_debut) + startPage : null,
+        page_fin: s.page_fin ? Number(s.page_fin) + startPage : null,
+      }));
+      toutesLesSequences = toutesLesSequences.concat(sequencesAjustees);
+    }
+
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "scenario", nom_fichier: file.name, fichier_url: url, contenu_extrait: toutesLesSequences });
+    status.textContent = `Scénario analysé — ${toutesLesSequences.length} séquence(s) trouvée(s) sur ${totalPages} pages. Clique "Voir séquences" dans la liste ci-dessous pour les consulter.`;
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
     status.textContent = "Erreur : " + err.message;
