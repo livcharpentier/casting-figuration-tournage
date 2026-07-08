@@ -1569,6 +1569,90 @@ async function renderListeJour(jourId) {
   });
 }
 
+// ==========================================================
+// GÉNÉRATION DES SÉQUENCES DU JOUR (dialogues) POUR LES COMÉDIENS
+// ==========================================================
+document.getElementById("btn-generer-sequences-jour").addEventListener("click", generateSequencesJourPdf);
+
+async function generateSequencesJourPdf() {
+  const jourId = document.getElementById("liste-jour-select").value;
+  const status = document.getElementById("sequences-jour-status");
+  if (!jourId) { status.textContent = "Choisis d'abord un jour de tournage."; return; }
+
+  const jour = state.jours.find((j) => j.id === jourId);
+  if (!jour || !jour.sequences) { status.textContent = "Ce jour n'a pas de séquences renseignées."; return; }
+
+  status.innerHTML = `<span class="spinner"></span> Recherche du scénario et des séquences du jour...`;
+  try {
+    // Récupérer le document scénario du film en cours
+    const { data: scenarioDocs } = await sb.from("film_documents").select("*").eq("film_id", state.currentFilmId).eq("type_document", "scenario").order("created_at", { ascending: false }).limit(1);
+    const scenarioDoc = (scenarioDocs || [])[0];
+    if (!scenarioDoc || !scenarioDoc.contenu_extrait) { status.textContent = "Aucun scénario importé pour ce film (onglet Pièces à déposer)."; return; }
+
+    // Extraire les numéros de séquence du jour (ex "12, 15, 18" ou "SEQ 12 — décor ; SEQ 15...")
+    const numerosJour = (jour.sequences.match(/\d+/g) || []);
+    if (!numerosJour.length) { status.textContent = "Impossible de détecter des numéros de séquence dans le champ 'Séquences' de ce jour."; return; }
+
+    const sequencesTrouvees = scenarioDoc.contenu_extrait.filter((s) => numerosJour.includes(String(s.numero).match(/\d+/)?.[0]));
+    if (!sequencesTrouvees.length) { status.textContent = "Aucune séquence correspondante trouvée dans le scénario importé."; return; }
+
+    const pagesManquantes = sequencesTrouvees.filter((s) => !s.page_debut);
+    if (pagesManquantes.length === sequencesTrouvees.length) {
+      status.textContent = "Le scénario importé ne contient pas les numéros de page (réimporte-le, la détection de page a été ajoutée récemment).";
+      return;
+    }
+
+    status.innerHTML = `<span class="spinner"></span> Extraction des pages du scénario en cours...`;
+
+    // Construire la liste unique des pages à extraire (0-indexées pour pdf-lib)
+    let pagesSet = new Set();
+    sequencesTrouvees.forEach((s) => {
+      const debut = s.page_debut || s.page_fin;
+      const fin = s.page_fin || s.page_debut;
+      if (debut && fin) {
+        for (let p = Number(debut); p <= Number(fin); p++) pagesSet.add(p - 1);
+      }
+    });
+    const pagesIndices = Array.from(pagesSet).sort((a, b) => a - b);
+
+    // Charger le PDF original et en extraire uniquement ces pages
+    const existingPdfBytes = await fetch(scenarioDoc.fichier_url).then((r) => r.arrayBuffer());
+    const srcDoc = await PDFLib.PDFDocument.load(existingPdfBytes);
+    const newDoc = await PDFLib.PDFDocument.create();
+    const validIndices = pagesIndices.filter((i) => i >= 0 && i < srcDoc.getPageCount());
+    const copiedPages = await newDoc.copyPages(srcDoc, validIndices);
+    copiedPages.forEach((p) => newDoc.addPage(p));
+    const newPdfBytes = await newDoc.save();
+
+    const blob = new Blob([newPdfBytes], { type: "application/pdf" });
+    const file = new File([blob], `Sequences_${jour.jour_tournage}.pdf`, { type: "application/pdf" });
+    const url = await uploadToStorage(file, "sequences-jour");
+
+    status.innerHTML = `✓ Séquences du jour ${esc(jour.jour_tournage)} générées (${validIndices.length} page(s)) — <a href="${url}" target="_blank" style="color:var(--accent);">voir le PDF</a>`;
+
+    // Proposer l'envoi
+    const container = document.getElementById("liste-jour-content");
+    const shareBar = document.createElement("div");
+    shareBar.style.cssText = "margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;";
+    shareBar.innerHTML = `
+      <button class="btn secondary" id="btn-seq-email">✉️ Envoyer par email</button>
+      <button class="btn secondary" id="btn-seq-whatsapp">💬 Envoyer par WhatsApp</button>
+    `;
+    container.prepend(shareBar);
+    document.getElementById("btn-seq-email").addEventListener("click", () => {
+      const subject = `Séquences du ${jour.jour_tournage} — à préparer`;
+      const body = `Bonjour,\n\nVoici les séquences prévues pour le ${jour.jour_tournage} :\n${url}\n\nMerci de préparer vos dialogues avant le tournage.`;
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    });
+    document.getElementById("btn-seq-whatsapp").addEventListener("click", () => {
+      const text = `Séquences prévues pour le ${jour.jour_tournage} :\n${url}\n\nMerci de préparer vos dialogues avant le tournage.`;
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+    });
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+}
+
 async function renderDepouillement(jourId) {
   const container = document.getElementById("depouillement-content");
   const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
