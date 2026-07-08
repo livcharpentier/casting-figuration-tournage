@@ -311,9 +311,9 @@
       <div class="field-row" style="justify-content:flex-end;">
         <button class="btn secondary" id="btn-trombi-reset">Réinitialiser</button>
         <button class="btn" id="btn-trombi-filter">Générer le trombinoscope</button>
-        <button class="btn secondary no-print" id="btn-trombi-print">🖨 Imprimer / Exporter PDF</button>
-        <button class="btn secondary no-print" id="btn-trombi-email">✉️ Email</button>
-        <button class="btn secondary no-print" id="btn-trombi-whatsapp">💬 WhatsApp</button>
+        <button class="btn secondary no-print" id="btn-trombi-print">Imprimer / Exporter PDF</button>
+        <button class="btn secondary no-print" id="btn-trombi-email">Email</button>
+        <button class="btn secondary no-print" id="btn-trombi-whatsapp">WhatsApp</button>
       </div>
     </div>
     <div id="trombi-count" style="color:var(--text-muted); font-size:13px; margin-bottom:10px;"></div>
@@ -329,30 +329,30 @@
     </div>
 
     <nav class="tabs" style="padding:0; margin-bottom:16px; position:static;">
-      <button class="subtab-btn active" data-subtab="documents">📁 Pièces à déposer</button>
-      <button class="subtab-btn" data-subtab="casting">🎬 Dépouillement</button>
-      <button class="subtab-btn" data-subtab="liste-jour">👥 Liste du jour</button>
+      <button class="subtab-btn active" data-subtab="documents">Pièces à déposer</button>
+      <button class="subtab-btn" data-subtab="casting">Dépouillement</button>
+      <button class="subtab-btn" data-subtab="liste-jour">Liste du jour</button>
     </nav>
 
     <!-- SOUS-ONGLET : Pièces à déposer -->
     <div class="subtab-panel active" id="subtab-documents">
       <div class="filter-panel" id="film-documents-panel">
-        <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">📁 Documents du film — importe la bible, le PDT, le scénario et le dépouillement pour ce film</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Documents du film — importe la bible, le PDT, le scénario et le dépouillement pour ce film</div>
         <div class="field-row">
           <div class="field">
-            <label>📖 Bible (PDF)</label>
+            <label>Bible (PDF)</label>
             <input type="file" id="upload-bible" accept="application/pdf">
           </div>
           <div class="field">
-            <label>📅 PDT — Plan de travail (Excel ou PDF)</label>
+            <label>PDT — Plan de travail (Excel ou PDF)</label>
             <input type="file" id="upload-pdt" accept=".xlsx,.xls,.csv,application/pdf">
           </div>
           <div class="field">
-            <label>🎬 Scénario (PDF)</label>
+            <label>Scénario (PDF)</label>
             <input type="file" id="upload-scenario" accept="application/pdf">
           </div>
           <div class="field">
-            <label>📋 Dépouillement (Excel ou PDF)</label>
+            <label>Dépouillement (Excel ou PDF)</label>
             <input type="file" id="upload-depouillement" accept=".xlsx,.xls,.csv,application/pdf">
           </div>
         </div>
@@ -376,7 +376,7 @@
     <div class="subtab-panel" id="subtab-liste-jour">
       <div class="jour-select-bar">
         <select id="liste-jour-select"></select>
-        <button class="btn secondary" id="btn-generer-sequences-jour">📄 Générer les séquences du jour (dialogues)</button>
+        <button class="btn secondary" id="btn-generer-sequences-jour">Générer les séquences du jour (dialogues)</button>
       </div>
       <div id="sequences-jour-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
       <div id="liste-jour-content"></div>
@@ -392,8 +392,8 @@
     </div>
     <div class="jour-select-bar">
       <select id="hmc-jour-select"></select>
-      <button class="btn secondary" id="btn-hmc-sync">↻ Synchroniser depuis le dépouillement</button>
-      <button class="btn secondary" id="btn-hmc-share-link">🔗 Lien pour les assistants</button>
+      <button class="btn secondary" id="btn-hmc-sync">Synchroniser depuis le dépouillement</button>
+      <button class="btn secondary" id="btn-hmc-share-link">Lien pour les assistants</button>
       <span id="hmc-realtime-indicator" style="font-size:12px; color:var(--green);">● temps réel actif</span>
     </div>
     <div id="hmc-content"></div>
