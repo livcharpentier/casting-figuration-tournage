@@ -339,7 +339,7 @@
     <!-- SOUS-ONGLET : Pièces à déposer -->
     <div class="subtab-panel active" id="subtab-documents">
       <div class="filter-panel" id="film-documents-panel">
-        <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Documents du film — importe la bible, le PDT, le scénario et le dépouillement pour ce film</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Documents du film — importe la bible, le PDT, le scénario, le dépouillement et la liste des figurants par jour pour ce film</div>
         <div class="field-row">
           <div class="field">
             <label>Bible (PDF)</label>
@@ -357,12 +357,17 @@
             <label>Dépouillement (Excel ou PDF)</label>
             <input type="file" id="upload-depouillement" accept=".xlsx,.xls,.csv,application/pdf">
           </div>
+          <div class="field">
+            <label>Liste figurants par jour (Excel ou PDF)</label>
+            <input type="file" id="upload-liste-figurants" accept=".xlsx,.xls,.csv,application/pdf">
+          </div>
         </div>
         <div id="film-documents-status" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         <div id="film-documents-list" style="margin-top:8px;"></div>
       </div>
       <div id="depouillement-review-container" style="display:none;"></div>
       <div id="pdt-review-container" style="display:none;"></div>
+      <div id="liste-figurants-review-container" style="display:none;"></div>
     </div>
 
     <!-- SOUS-ONGLET : Dépouillement (choix des jours et acteurs de complément) -->
