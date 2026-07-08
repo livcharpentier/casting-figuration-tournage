@@ -56,6 +56,20 @@
   nav.tabs button.active{ color:var(--accent); border-bottom-color:var(--accent); }
   nav.tabs button:hover{ color:var(--text); }
 
+  .subtab-btn{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted);
+    padding:8px 14px; font-size:13px; cursor:pointer; font-weight:600; border-radius:8px;
+    font-family:var(--font-ui); margin-right:6px;
+  }
+  .subtab-btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .subtab-panel{ display:none; }
+  .subtab-panel.active{ display:block; }
+
+  /* Mode "kiosque" HMC : accès restreint pour les assistants, sans les autres onglets */
+  body.kiosk-active nav.tabs{ display:none !important; }
+  body.kiosk-active #tab-hmc > .jour-select-bar{ display:none !important; }
+  body.kiosk-active .app-header .subtitle::after{ content:" — Accès HMC restreint"; }
+
   main{ padding:20px; max-width:1400px; margin:0 auto; }
   .tab-panel{ display:none; }
   .tab-panel.active{ display:block; }
@@ -314,39 +328,57 @@
       <button class="btn secondary" id="btn-new-film-depouillement">+ Nouveau film</button>
     </div>
 
-    <div class="filter-panel" id="film-documents-panel">
-      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">📁 Documents du film — importe la bible, le PDT, le scénario et le dépouillement pour ce film</div>
-      <div class="field-row">
-        <div class="field">
-          <label>📖 Bible (PDF)</label>
-          <input type="file" id="upload-bible" accept="application/pdf">
+    <nav class="tabs" style="padding:0; margin-bottom:16px; position:static;">
+      <button class="subtab-btn active" data-subtab="documents">📁 Pièces à déposer</button>
+      <button class="subtab-btn" data-subtab="casting">🎬 Dépouillement</button>
+      <button class="subtab-btn" data-subtab="liste-jour">👥 Liste du jour</button>
+    </nav>
+
+    <!-- SOUS-ONGLET : Pièces à déposer -->
+    <div class="subtab-panel active" id="subtab-documents">
+      <div class="filter-panel" id="film-documents-panel">
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">📁 Documents du film — importe la bible, le PDT, le scénario et le dépouillement pour ce film</div>
+        <div class="field-row">
+          <div class="field">
+            <label>📖 Bible (PDF)</label>
+            <input type="file" id="upload-bible" accept="application/pdf">
+          </div>
+          <div class="field">
+            <label>📅 PDT — Plan de travail (Excel ou PDF)</label>
+            <input type="file" id="upload-pdt" accept=".xlsx,.xls,.csv,application/pdf">
+          </div>
+          <div class="field">
+            <label>🎬 Scénario (PDF)</label>
+            <input type="file" id="upload-scenario" accept="application/pdf">
+          </div>
+          <div class="field">
+            <label>📋 Dépouillement (Excel ou PDF)</label>
+            <input type="file" id="upload-depouillement" accept=".xlsx,.xls,.csv,application/pdf">
+          </div>
         </div>
-        <div class="field">
-          <label>📅 PDT — Plan de travail (Excel ou PDF)</label>
-          <input type="file" id="upload-pdt" accept=".xlsx,.xls,.csv,application/pdf">
-        </div>
-        <div class="field">
-          <label>🎬 Scénario (PDF)</label>
-          <input type="file" id="upload-scenario" accept="application/pdf">
-        </div>
-        <div class="field">
-          <label>📋 Dépouillement (Excel ou PDF)</label>
-          <input type="file" id="upload-depouillement" accept=".xlsx,.xls,.csv,application/pdf">
-        </div>
+        <div id="film-documents-status" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+        <div id="film-documents-list" style="margin-top:8px;"></div>
       </div>
-      <div id="film-documents-status" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
-      <div id="film-documents-list" style="margin-top:8px;"></div>
+      <div id="depouillement-review-container" style="display:none;"></div>
+      <div id="pdt-review-container" style="display:none;"></div>
     </div>
 
-    <div id="depouillement-review-container" style="display:none;"></div>
-
-    <div id="pdt-review-container" style="display:none;"></div>
-
-    <div class="jour-select-bar">
-      <select id="depouillement-jour-select"></select>
-      <button class="btn secondary" id="btn-new-jour">+ Nouveau jour de tournage</button>
+    <!-- SOUS-ONGLET : Dépouillement (choix des jours et acteurs de complément) -->
+    <div class="subtab-panel" id="subtab-casting">
+      <div class="jour-select-bar">
+        <select id="depouillement-jour-select"></select>
+        <button class="btn secondary" id="btn-new-jour">+ Nouveau jour de tournage</button>
+      </div>
+      <div id="depouillement-content"></div>
     </div>
-    <div id="depouillement-content"></div>
+
+    <!-- SOUS-ONGLET : Liste du jour (nom, prénom, tél, mail, rôle, notes) -->
+    <div class="subtab-panel" id="subtab-liste-jour">
+      <div class="jour-select-bar">
+        <select id="liste-jour-select"></select>
+      </div>
+      <div id="liste-jour-content"></div>
+    </div>
   </section>
 
   <!-- ============ ONGLET HMC ============ -->
@@ -359,6 +391,7 @@
     <div class="jour-select-bar">
       <select id="hmc-jour-select"></select>
       <button class="btn secondary" id="btn-hmc-sync">↻ Synchroniser depuis le dépouillement</button>
+      <button class="btn secondary" id="btn-hmc-share-link">🔗 Lien pour les assistants</button>
       <span id="hmc-realtime-indicator" style="font-size:12px; color:var(--green);">● temps réel actif</span>
     </div>
     <div id="hmc-content"></div>
