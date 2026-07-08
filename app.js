@@ -1208,7 +1208,7 @@ async function loadFilmDocuments(filmId) {
   if (!filmId) { listEl.innerHTML = ""; return; }
   const { data } = await sb.from("film_documents").select("*").eq("film_id", filmId).order("created_at", { ascending: false });
   const docs = data || [];
-  const labels = { bible: "Bible", pdt: "PDT", scenario: "Scénario", depouillement: "Dépouillement" };
+  const labels = { bible: "Bible", pdt: "PDT", scenario: "Scénario", depouillement: "Dépouillement", liste_figurants: "Liste figurants" };
   if (!docs.length) { listEl.innerHTML = `<div style="font-size:12px; color:var(--text-muted);">Aucun document importé pour ce film.</div>`; return; }
   listEl.innerHTML = docs.map((d) => `
     <div class="doc-item">
@@ -1216,6 +1216,7 @@ async function loadFilmDocuments(filmId) {
       <a href="${esc(d.fichier_url)}" target="_blank">${esc(d.nom_fichier || d.fichier_url)}</a>
       ${d.type_document === "scenario" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="showScenarioContent('${d.id}')">Voir séquences</button>` : ""}
       ${d.type_document === "depouillement" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="renderDepouillementImportReview(state.filmDocumentsCache.find(x => x.id === '${d.id}').contenu_extrait)">Revoir / réimporter</button>` : ""}
+      ${d.type_document === "liste_figurants" && d.contenu_extrait ? `<button type="button" class="btn-icon" onclick="renderListeFigurantsImportReview(state.filmDocumentsCache.find(x => x.id === '${d.id}').contenu_extrait)">Revoir / réimporter</button>` : ""}
       <button class="btn-icon" onclick="deleteFilmDocument('${d.id}', '${filmId}')">Supprimer</button>
     </div>
   `).join("");
@@ -1363,6 +1364,134 @@ document.getElementById("upload-depouillement").addEventListener("change", async
     status.textContent = "Erreur : " + err.message;
   }
 });
+
+document.getElementById("upload-liste-figurants").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
+  const status = document.getElementById("film-documents-status");
+  status.innerHTML = `<span class="spinner"></span> Analyse de la liste des figurants en cours...`;
+  try {
+    const url = await uploadToStorage(file, "liste-figurants");
+    const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
+
+    const payload = { type: "liste_figurants" };
+    if (isExcelOrCsv) {
+      payload.texte = await excelFileToText(file);
+    } else {
+      payload.pdfBase64 = await fileToBase64(file);
+    }
+
+    const res = await fetch("/api/extract-pdt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "liste_figurants", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
+    status.textContent = `Liste analysée — ${json.extracted.length} figurant(s) trouvé(s) sur les différents jours. Vérifie et importe ci-dessous.`;
+    await loadJours();
+    if (!state.personnes.length) await loadPersonnes();
+    renderListeFigurantsImportReview(json.extracted);
+    await loadFilmDocuments(state.currentFilmId);
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
+function deviserTypeRole(roleTexte) {
+  const t = (roleTexte || "").toLowerCase();
+  if (t.includes("parlante") || t.includes("parlant")) return "silhouette_parlante";
+  if (t.includes("enfant")) return "enfant";
+  if (t.includes("cascade")) return "cascadeur";
+  if (t.includes("petit")) return "petit_role";
+  return "silhouette";
+}
+
+function renderListeFigurantsImportReview(lignes) {
+  const container = document.getElementById("liste-figurants-review-container");
+  if (!lignes || !lignes.length) { container.style.display = "none"; return; }
+  container.style.display = "block";
+
+  function trouverPersonne(nom, prenom) {
+    const n = (nom || "").trim().toLowerCase();
+    const p = (prenom || "").trim().toLowerCase();
+    return state.personnes.find((x) => (x.nom || "").trim().toLowerCase() === n && (x.prenom || "").trim().toLowerCase() === p);
+  }
+
+  container.innerHTML = `
+    <div class="filter-panel">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Les personnes déjà connues seront liées à leur fiche existante ; les nouvelles seront automatiquement créées dans la base Comédiens/Figurants (type "figurant") avec leurs coordonnées. Les jours doivent déjà exister :</div>
+      <table class="role-table">
+        <thead><tr><th><input type="checkbox" id="figu-check-all" checked></th><th>Jour</th><th>Nom</th><th>Prénom</th><th>Tél</th><th>Mail</th><th>Rôle</th><th>Statut</th></tr></thead>
+        <tbody>
+          ${lignes.map((l, i) => {
+            const jourMatch = state.jours.find((j) => j.jour_tournage.toLowerCase() === (l.jour_tournage || "").toLowerCase());
+            const personneMatch = trouverPersonne(l.nom, l.prenom);
+            return `
+            <tr>
+              <td><input type="checkbox" class="figu-row-check" data-idx="${i}" ${jourMatch ? "checked" : "disabled"}></td>
+              <td>${esc(l.jour_tournage)}</td>
+              <td>${esc(l.nom)}</td>
+              <td>${esc(l.prenom)}</td>
+              <td>${esc(l.telephone)}</td>
+              <td>${esc(l.email)}</td>
+              <td>${esc(l.role)}</td>
+              <td>${!jourMatch ? "Jour à créer d'abord" : personneMatch ? "Personne existante" : "Nouvelle personne"}</td>
+            </tr>
+          `;
+          }).join("")}
+        </tbody>
+      </table>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+        <button class="btn secondary" id="btn-figu-cancel">Annuler</button>
+        <button class="btn" id="btn-figu-import">Importer les figurants sélectionnés</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("figu-check-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".figu-row-check:not(:disabled)").forEach((c) => { c.checked = e.target.checked; });
+  });
+  document.getElementById("btn-figu-cancel").addEventListener("click", () => { container.style.display = "none"; container.innerHTML = ""; });
+  document.getElementById("btn-figu-import").addEventListener("click", async () => {
+    const selected = Array.from(document.querySelectorAll(".figu-row-check:checked")).map((c) => lignes[Number(c.dataset.idx)]);
+    if (!selected.length) { alert("Sélectionne au moins une ligne."); return; }
+    const btn = document.getElementById("btn-figu-import");
+    btn.disabled = true;
+    btn.textContent = "Import en cours...";
+    let imported = 0;
+    for (const l of selected) {
+      const jourMatch = state.jours.find((j) => j.jour_tournage.toLowerCase() === (l.jour_tournage || "").toLowerCase());
+      if (!jourMatch) continue;
+      let personne = trouverPersonne(l.nom, l.prenom);
+      if (!personne) {
+        const { data: nouvellePersonne, error: errPersonne } = await sb.from("personnes").insert({
+          type_personne: "figurant",
+          nom: l.nom || "",
+          prenom: l.prenom || "",
+          telephone: l.telephone || null,
+          email: l.email || null,
+        }).select().single();
+        if (!errPersonne) {
+          personne = nouvellePersonne;
+          state.personnes.push(personne);
+        }
+      }
+      await sb.from("depouillement_roles").insert({
+        jour_id: jourMatch.id,
+        personne_id: personne ? personne.id : null,
+        type_role: deviserTypeRole(l.role),
+        nom_personnage: l.role || "",
+        photo_url_snapshot: personne ? personne.photo_url : null,
+      });
+      imported++;
+    }
+    container.style.display = "none";
+    container.innerHTML = "";
+    if (state.currentDepouillementJourId) await renderDepouillement(state.currentDepouillementJourId);
+    alert(`${imported} figurant(s) importé(s) avec succès (nouvelles fiches créées si besoin).`);
+  });
+}
 
 function renderDepouillementImportReview(roles) {
   const container = document.getElementById("depouillement-review-container");
