@@ -1264,38 +1264,6 @@ document.getElementById("upload-bible").addEventListener("change", async (e) => 
   }
 });
 
-document.getElementById("upload-pdt").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
-  const status = document.getElementById("film-documents-status");
-  status.innerHTML = `<span class="spinner"></span> Analyse du PDT en cours (peut prendre 30s-1min sur un gros document)...`;
-  try {
-    const url = await uploadToStorage(file, "pdt");
-    const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
-
-    const payload = { type: "pdt" };
-    if (isExcelOrCsv) {
-      payload.texte = await excelFileToText(file);
-    } else {
-      payload.pdfBase64 = await fileToBase64(file);
-    }
-
-    const res = await fetch("/api/extract-pdt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
-    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "pdt", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `PDT analysé — ${json.extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
-    renderPdtReview(json.extracted);
-    await loadFilmDocuments(state.currentFilmId);
-  } catch (err) {
-    status.textContent = "Erreur : " + err.message;
-  }
-});
-
 // Convertit un fichier Excel/CSV en texte (toutes les feuilles) pour l'envoyer à l'IA
 async function excelFileToText(file) {
   const arrayBuffer = await file.arrayBuffer();
@@ -1309,51 +1277,90 @@ async function excelFileToText(file) {
   return text;
 }
 
+// Appel sécurisé à l'API d'extraction : gère les réponses non-JSON (timeout, erreur serveur HTML...)
+async function callExtractPdtApi(payload) {
+  const res = await fetch("/api/extract-pdt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let json;
+  try {
+    json = await res.json();
+  } catch (e) {
+    throw new Error(`Le serveur a mis trop de temps à répondre ou a renvoyé une erreur inattendue (code ${res.status}). Réessaie, ou avec un fichier/morceau plus petit.`);
+  }
+  if (json.error) throw new Error(json.error);
+  return json.extracted || [];
+}
+
+// Analyse un fichier (PDF découpé en morceaux de pages, ou Excel/CSV en un seul appel) et fusionne les résultats
+async function analyserDocumentParMorceaux(file, type, statusEl, ajusterPages) {
+  const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
+
+  if (isExcelOrCsv) {
+    statusEl.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
+    const texte = await excelFileToText(file);
+    return await callExtractPdtApi({ type, texte });
+  }
+
+  // PDF : découpage en petits morceaux de pages pour rester sous la limite de temps du serveur
+  const arrayBuffer = await file.arrayBuffer();
+  const srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+  const totalPages = srcDoc.getPageCount();
+  const CHUNK_SIZE = 6;
+  const nbChunks = Math.ceil(totalPages / CHUNK_SIZE);
+
+  let tousLesResultats = [];
+  for (let c = 0; c < nbChunks; c++) {
+    const startPage = c * CHUNK_SIZE;
+    const endPage = Math.min(startPage + CHUNK_SIZE, totalPages);
+    statusEl.innerHTML = `<span class="spinner"></span> Analyse : pages ${startPage + 1} à ${endPage} sur ${totalPages}...`;
+
+    const chunkDoc = await PDFLib.PDFDocument.create();
+    const indices = [];
+    for (let p = startPage; p < endPage; p++) indices.push(p);
+    const copiedPages = await chunkDoc.copyPages(srcDoc, indices);
+    copiedPages.forEach((p) => chunkDoc.addPage(p));
+    const chunkBytes = await chunkDoc.save();
+    const chunkBase64 = btoa(String.fromCharCode(...new Uint8Array(chunkBytes)));
+
+    const resultats = await callExtractPdtApi({ pdfBase64: chunkBase64, type });
+    const ajustes = ajusterPages ? resultats.map((r) => ajusterPages(r, startPage)) : resultats;
+    tousLesResultats = tousLesResultats.concat(ajustes);
+  }
+  return tousLesResultats;
+}
+
+document.getElementById("upload-pdt").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
+  const status = document.getElementById("film-documents-status");
+  try {
+    const url = await uploadToStorage(file, "pdt");
+    const extracted = await analyserDocumentParMorceaux(file, "pdt", status);
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "pdt", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
+    status.textContent = `PDT analysé — ${extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    renderPdtReview(extracted);
+    await loadFilmDocuments(state.currentFilmId);
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
 document.getElementById("upload-scenario").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
   try {
     const url = await uploadToStorage(file, "scenario");
-    const arrayBuffer = await file.arrayBuffer();
-    const srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-    const totalPages = srcDoc.getPageCount();
-    const CHUNK_SIZE = 6; // pages par appel, pour rester sous la limite de temps du serveur
-    const nbChunks = Math.ceil(totalPages / CHUNK_SIZE);
-
-    let toutesLesSequences = [];
-    for (let c = 0; c < nbChunks; c++) {
-      const startPage = c * CHUNK_SIZE; // 0-indexé
-      const endPage = Math.min(startPage + CHUNK_SIZE, totalPages);
-      status.innerHTML = `<span class="spinner"></span> Analyse du scénario : pages ${startPage + 1} à ${endPage} sur ${totalPages}...`;
-
-      const chunkDoc = await PDFLib.PDFDocument.create();
-      const indices = [];
-      for (let p = startPage; p < endPage; p++) indices.push(p);
-      const copiedPages = await chunkDoc.copyPages(srcDoc, indices);
-      copiedPages.forEach((p) => chunkDoc.addPage(p));
-      const chunkBytes = await chunkDoc.save();
-      const chunkBase64 = btoa(String.fromCharCode(...new Uint8Array(chunkBytes)));
-
-      const res = await fetch("/api/extract-pdt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfBase64: chunkBase64, type: "scenario" }),
-      });
-      const json = await res.json();
-      if (json.error) { status.textContent = `Erreur sur les pages ${startPage + 1}-${endPage} : ${json.error}`; return; }
-
-      // Recaler les numéros de page (relatifs au morceau) sur la pagination réelle du document complet
-      const sequencesAjustees = (json.extracted || []).map((s) => ({
-        ...s,
-        page_debut: s.page_debut ? Number(s.page_debut) + startPage : null,
-        page_fin: s.page_fin ? Number(s.page_fin) + startPage : null,
-      }));
-      toutesLesSequences = toutesLesSequences.concat(sequencesAjustees);
-    }
-
-    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "scenario", nom_fichier: file.name, fichier_url: url, contenu_extrait: toutesLesSequences });
-    status.textContent = `Scénario analysé — ${toutesLesSequences.length} séquence(s) trouvée(s) sur ${totalPages} pages. Clique "Voir séquences" dans la liste ci-dessous pour les consulter.`;
+    const extracted = await analyserDocumentParMorceaux(file, "scenario", status, (s, startPage) => ({
+      ...s,
+      page_debut: s.page_debut ? Number(s.page_debut) + startPage : null,
+      page_fin: s.page_fin ? Number(s.page_fin) + startPage : null,
+    }));
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "scenario", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
+    status.textContent = `Scénario analysé — ${extracted.length} séquence(s) trouvée(s). Clique "Voir séquences" dans la liste ci-dessous pour les consulter.`;
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
     status.textContent = "Erreur : " + err.message;
@@ -1364,29 +1371,13 @@ document.getElementById("upload-depouillement").addEventListener("change", async
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
-  status.innerHTML = `<span class="spinner"></span> Analyse du dépouillement en cours...`;
   try {
     const url = await uploadToStorage(file, "depouillement");
-    const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
-
-    const payload = { type: "depouillement" };
-    if (isExcelOrCsv) {
-      payload.texte = await excelFileToText(file);
-    } else {
-      payload.pdfBase64 = await fileToBase64(file);
-    }
-
-    const res = await fetch("/api/extract-pdt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
-    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "depouillement", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `Dépouillement analysé — ${json.extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
-    await loadJours(); // s'assurer que state.jours est à jour pour faire correspondre les jours
-    renderDepouillementImportReview(json.extracted);
+    const extracted = await analyserDocumentParMorceaux(file, "depouillement", status);
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "depouillement", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
+    status.textContent = `Dépouillement analysé — ${extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    await loadJours();
+    renderDepouillementImportReview(extracted);
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
     status.textContent = "Erreur : " + err.message;
@@ -1397,30 +1388,14 @@ document.getElementById("upload-liste-figurants").addEventListener("change", asy
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
-  status.innerHTML = `<span class="spinner"></span> Analyse de la liste des figurants en cours...`;
   try {
     const url = await uploadToStorage(file, "liste-figurants");
-    const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
-
-    const payload = { type: "liste_figurants" };
-    if (isExcelOrCsv) {
-      payload.texte = await excelFileToText(file);
-    } else {
-      payload.pdfBase64 = await fileToBase64(file);
-    }
-
-    const res = await fetch("/api/extract-pdt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (json.error) { status.textContent = "Erreur : " + json.error; return; }
-    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "liste_figurants", nom_fichier: file.name, fichier_url: url, contenu_extrait: json.extracted });
-    status.textContent = `Liste analysée — ${json.extracted.length} figurant(s) trouvé(s) sur les différents jours. Vérifie et importe ci-dessous.`;
+    const extracted = await analyserDocumentParMorceaux(file, "liste_figurants", status);
+    await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "liste_figurants", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
+    status.textContent = `Liste analysée — ${extracted.length} figurant(s) trouvé(s) sur les différents jours. Vérifie et importe ci-dessous.`;
     await loadJours();
     if (!state.personnes.length) await loadPersonnes();
-    renderListeFigurantsImportReview(json.extracted);
+    renderListeFigurantsImportReview(extracted);
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
     status.textContent = "Erreur : " + err.message;
