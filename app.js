@@ -1295,6 +1295,81 @@ async function callExtractPdtApi(payload) {
 }
 
 // Analyse un fichier (PDF découpé en morceaux de pages, ou Excel/CSV en un seul appel) et fusionne les résultats
+// ==========================================================
+// LECTURE EXCEL SANS IA (gratuite, instantanée, basée sur les en-têtes de colonnes)
+// ==========================================================
+function normaliserEnTete(s) {
+  return (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function trouverColonne(entetes, motsCles) {
+  for (let i = 0; i < entetes.length; i++) {
+    for (const mot of motsCles) {
+      const re = new RegExp("\\b" + mot + "\\b");
+      if (re.test(entetes[i])) return i;
+    }
+  }
+  return -1;
+}
+
+// Lit toutes les feuilles d'un fichier Excel/CSV et reconnaît les colonnes selon les mots-clés fournis
+async function parseExcelSansIA(file, colonnesAttendues) {
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: "array" });
+  let resultats = [];
+  workbook.SheetNames.forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    if (!rows.length) return;
+
+    let headerRowIdx = -1;
+    let colIndices = {};
+    for (let r = 0; r < Math.min(rows.length, 15); r++) {
+      const entetes = (rows[r] || []).map(normaliserEnTete);
+      const indices = {};
+      let nbTrouvees = 0;
+      for (const [champ, motsCles] of Object.entries(colonnesAttendues)) {
+        const idx = trouverColonne(entetes, motsCles);
+        if (idx !== -1) { indices[champ] = idx; nbTrouvees++; }
+      }
+      if (nbTrouvees >= 2) { headerRowIdx = r; colIndices = indices; break; }
+    }
+    if (headerRowIdx === -1) return; // aucun tableau reconnaissable sur cette feuille
+
+    for (let r = headerRowIdx + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      if (row.every((c) => c === "" || c === undefined || c === null)) continue;
+      const obj = {};
+      for (const [champ, idx] of Object.entries(colIndices)) {
+        obj[champ] = row[idx] !== undefined && row[idx] !== null ? String(row[idx]).trim() : "";
+      }
+      if (Object.values(obj).some((v) => v)) resultats.push(obj);
+    }
+  });
+  return resultats;
+}
+
+const COLONNES_PDT = {
+  jour_tournage: ["jour", "jr"],
+  date_tournage: ["date"],
+  decor: ["decor", "lieu"],
+  sequences: ["sequence", "seq", "sequences"],
+};
+const COLONNES_DEPOUILLEMENT = {
+  jour_tournage: ["jour", "jr"],
+  type_role: ["type"],
+  sequence: ["sequence", "seq"],
+  nom_personnage: ["personnage", "role", "figurant"],
+};
+const COLONNES_LISTE_FIGURANTS = {
+  jour_tournage: ["jour", "jr"],
+  nom: ["nom"],
+  prenom: ["prenom"],
+  telephone: ["tel", "telephone", "portable", "gsm"],
+  email: ["mail", "email", "courriel"],
+  role: ["role", "personnage"],
+};
+
 async function analyserDocumentParMorceaux(file, type, statusEl, ajusterPages) {
   const isExcelOrCsv = /\.(xlsx|xls|csv)$/i.test(file.name) || file.type.includes("sheet") || file.type.includes("csv") || file.type.includes("excel");
 
@@ -1353,11 +1428,19 @@ document.getElementById("upload-pdt").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
+  const isExcel = /\.(xlsx|xls|csv)$/i.test(file.name);
   try {
     const url = await uploadToStorage(file, "pdt");
-    const extracted = await analyserDocumentParMorceaux(file, "pdt", status);
+    let extracted;
+    if (isExcel) {
+      status.innerHTML = `<span class="spinner"></span> Lecture du fichier (sans IA)...`;
+      extracted = await parseExcelSansIA(file, COLONNES_PDT);
+      if (!extracted.length) { status.textContent = "Aucune colonne reconnue dans ce fichier (attendu : Jour, Date, Décor, Séquences). Vérifie les en-têtes."; return; }
+    } else {
+      extracted = await analyserDocumentParMorceaux(file, "pdt", status);
+    }
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "pdt", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
-    status.textContent = `PDT analysé — ${extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    status.textContent = `PDT lu — ${extracted.length} jour(s) trouvé(s). Vérifie et importe ci-dessous.`;
     renderPdtReview(extracted);
     await loadFilmDocuments(state.currentFilmId);
   } catch (err) {
@@ -1388,11 +1471,20 @@ document.getElementById("upload-depouillement").addEventListener("change", async
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
+  const isExcel = /\.(xlsx|xls|csv)$/i.test(file.name);
   try {
     const url = await uploadToStorage(file, "depouillement");
-    const extracted = await analyserDocumentParMorceaux(file, "depouillement", status);
+    let extracted;
+    if (isExcel) {
+      status.innerHTML = `<span class="spinner"></span> Lecture du fichier (sans IA)...`;
+      extracted = await parseExcelSansIA(file, COLONNES_DEPOUILLEMENT);
+      extracted = extracted.map((r) => ({ ...r, type_role: deviserTypeRole(r.type_role) }));
+      if (!extracted.length) { status.textContent = "Aucune colonne reconnue dans ce fichier (attendu : Jour, Type, Séquence, Personnage). Vérifie les en-têtes."; return; }
+    } else {
+      extracted = await analyserDocumentParMorceaux(file, "depouillement", status);
+    }
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "depouillement", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
-    status.textContent = `Dépouillement analysé — ${extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
+    status.textContent = `Dépouillement lu — ${extracted.length} rôle(s) trouvé(s). Vérifie et importe ci-dessous.`;
     await loadJours();
     renderDepouillementImportReview(extracted);
     await loadFilmDocuments(state.currentFilmId);
@@ -1405,11 +1497,19 @@ document.getElementById("upload-liste-figurants").addEventListener("change", asy
   const file = e.target.files[0];
   if (!file || !state.currentFilmId) { if (!state.currentFilmId) alert("Choisis d'abord un film."); return; }
   const status = document.getElementById("film-documents-status");
+  const isExcel = /\.(xlsx|xls|csv)$/i.test(file.name);
   try {
     const url = await uploadToStorage(file, "liste-figurants");
-    const extracted = await analyserDocumentParMorceaux(file, "liste_figurants", status);
+    let extracted;
+    if (isExcel) {
+      status.innerHTML = `<span class="spinner"></span> Lecture du fichier (sans IA)...`;
+      extracted = await parseExcelSansIA(file, COLONNES_LISTE_FIGURANTS);
+      if (!extracted.length) { status.textContent = "Aucune colonne reconnue dans ce fichier (attendu : Jour, Nom, Prénom, Tél, Mail, Rôle). Vérifie les en-têtes."; return; }
+    } else {
+      extracted = await analyserDocumentParMorceaux(file, "liste_figurants", status);
+    }
     await sb.from("film_documents").insert({ film_id: state.currentFilmId, type_document: "liste_figurants", nom_fichier: file.name, fichier_url: url, contenu_extrait: extracted });
-    status.textContent = `Liste analysée — ${extracted.length} figurant(s) trouvé(s) sur les différents jours. Vérifie et importe ci-dessous.`;
+    status.textContent = `Liste lue — ${extracted.length} figurant(s) trouvé(s) sur les différents jours. Vérifie et importe ci-dessous.`;
     await loadJours();
     if (!state.personnes.length) await loadPersonnes();
     renderListeFigurantsImportReview(extracted);
