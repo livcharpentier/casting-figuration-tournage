@@ -67,7 +67,9 @@
 
   /* Mode "kiosque" HMC : accès restreint pour les assistants, sans les autres onglets */
   body.kiosk-active nav.tabs{ display:none !important; }
-  body.kiosk-active #tab-hmc > .jour-select-bar{ display:none !important; }
+  body.kiosk-active .subtabs-bar{ display:none !important; }
+  body.kiosk-active #tab-depouillement > .jour-select-bar{ display:none !important; }
+  body.kiosk-active #subtab-documents, body.kiosk-active #subtab-casting, body.kiosk-active #subtab-liste-jour{ display:none !important; }
   body.kiosk-active .app-header .subtitle::after{ content:" — Accès HMC restreint"; }
 
   main{ padding:20px; max-width:1400px; margin:0 auto; }
@@ -217,7 +219,6 @@
   <button class="tab-btn active" data-tab="personnes">Comédiens / Figurants</button>
   <button class="tab-btn" data-tab="trombinoscope">Trombinoscope</button>
   <button class="tab-btn" data-tab="depouillement">Films</button>
-  <button class="tab-btn" data-tab="hmc">Préparation HMC</button>
 </nav>
 
 <main>
@@ -332,6 +333,7 @@
       <button class="subtab-btn active" data-subtab="documents">Pièces à déposer</button>
       <button class="subtab-btn" data-subtab="casting">Dépouillement</button>
       <button class="subtab-btn" data-subtab="liste-jour">Liste du jour</button>
+      <button class="subtab-btn" data-subtab="hmc">Préparation HMC</button>
     </div>
 
     <!-- SOUS-ONGLET : Pièces à déposer -->
@@ -381,22 +383,17 @@
       <div id="sequences-jour-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
       <div id="liste-jour-content"></div>
     </div>
-  </section>
 
-  <!-- ============ ONGLET HMC ============ -->
-  <section class="tab-panel" id="tab-hmc">
-    <div class="jour-select-bar" style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px;">
-      <strong style="font-size:13px; color:var(--text-muted);">Film :</strong>
-      <select id="film-select-hmc"></select>
-      <button class="btn secondary" id="btn-new-film-hmc">+ Nouveau film</button>
+    <!-- SOUS-ONGLET : Préparation HMC -->
+    <div class="subtab-panel" id="subtab-hmc">
+      <div class="jour-select-bar">
+        <select id="hmc-jour-select"></select>
+        <button class="btn secondary" id="btn-hmc-sync">Synchroniser depuis le dépouillement</button>
+        <button class="btn secondary" id="btn-hmc-share-link">Lien pour les assistants</button>
+        <span id="hmc-realtime-indicator" style="font-size:12px; color:var(--green);">● temps réel actif</span>
+      </div>
+      <div id="hmc-content"></div>
     </div>
-    <div class="jour-select-bar">
-      <select id="hmc-jour-select"></select>
-      <button class="btn secondary" id="btn-hmc-sync">Synchroniser depuis le dépouillement</button>
-      <button class="btn secondary" id="btn-hmc-share-link">Lien pour les assistants</button>
-      <span id="hmc-realtime-indicator" style="font-size:12px; color:var(--green);">● temps réel actif</span>
-    </div>
-    <div id="hmc-content"></div>
   </section>
 
 </main>
