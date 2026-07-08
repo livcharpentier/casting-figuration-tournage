@@ -64,8 +64,23 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Si le document contient beaucoup de lignes, extrais-les toutes. Ne pas inventer de lignes absentes du document.`;
+    } else if (type === 'liste_figurants') {
+      contextText = `Voici une liste de figurants déjà nommés (avec leurs coordonnées), organisée par jour de tournage.`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balises markdown), où chaque élément représente un figurant convoqué un jour donné avec exactement ces clés :
+[
+  {
+    "jour_tournage": "",  // jour de tournage concerné, ex "J1", "J20" (tel qu'indiqué dans le document)
+    "nom": "",
+    "prenom": "",
+    "telephone": "",
+    "email": "",
+    "role": ""             // rôle/personnage joué ce jour-là (ex "Passant n°3", "silhouette", "silhouette parlante")
+  }
+]
+Si le document contient beaucoup de lignes, extrais-les toutes. Ne pas inventer de lignes absentes du document.`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario' ou 'depouillement'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement' ou 'liste_figurants'." });
       return;
     }
 
