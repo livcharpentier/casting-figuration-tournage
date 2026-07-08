@@ -376,7 +376,9 @@
     <div class="subtab-panel" id="subtab-liste-jour">
       <div class="jour-select-bar">
         <select id="liste-jour-select"></select>
+        <button class="btn secondary" id="btn-generer-sequences-jour">📄 Générer les séquences du jour (dialogues)</button>
       </div>
+      <div id="sequences-jour-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
       <div id="liste-jour-content"></div>
     </div>
   </section>
@@ -402,6 +404,7 @@
 <!-- ============ MODALS (injectés en JS) ============ -->
 <div class="modal-overlay" id="modal-overlay"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
