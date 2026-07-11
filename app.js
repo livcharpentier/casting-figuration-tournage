@@ -27,6 +27,7 @@ let state = {
   films: [],
   currentFilmId: localStorage.getItem("castingFiguration_currentFilmId") || null,
   filmDocumentsCache: [],
+  currentPresenceJourId: null,
 };
 
 // ==========================================================
@@ -1214,6 +1215,7 @@ async function initFilmSelectors() {
   populateFilmSelect("film-select-depouillement");
   document.getElementById("film-select-depouillement").onchange = (e) => onFilmChange(e.target.value);
   await loadJoursDropdown("liste-jour-select", onListeJourChange);
+  await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 
@@ -1223,6 +1225,7 @@ async function onFilmChange(newFilmId) {
   document.getElementById("film-select-depouillement").value = newFilmId;
   await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
   await loadJoursDropdown("liste-jour-select", onListeJourChange);
+  await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
   await loadFilmDocuments(newFilmId);
 }
@@ -1811,9 +1814,129 @@ async function onDepouillementJourChange(jourId) {
 
 async function onListeJourChange(jourId) {
   const container = document.getElementById("liste-jour-content");
-  if (!jourId) { container.innerHTML = `<div class="empty-state"><div class="big">👥</div>Choisis un jour de tournage.</div>`; return; }
+  if (!jourId) { container.innerHTML = `<div class="empty-state"><div class="big"></div>Choisis un jour de tournage.</div>`; return; }
   await renderListeJour(jourId);
 }
+
+async function onPresenceJourChange(jourId) {
+  state.currentPresenceJourId = jourId || null;
+  const container = document.getElementById("presence-content");
+  if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis un jour de tournage.</div>`; document.getElementById("presence-count").textContent = ""; return; }
+  await renderPresenceJour(jourId);
+}
+
+async function renderPresenceJour(jourId) {
+  const container = document.getElementById("presence-content");
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+  if (!list.length) { container.innerHTML = `<div class="empty-state">Aucun figurant casté pour ce jour (va dans "Dépouillement" pour en ajouter).</div>`; document.getElementById("presence-count").textContent = ""; return; }
+
+  const enrichis = list.map((r) => {
+    let nom = "", prenom = "", tel = "", photo = r.photo_url_snapshot;
+    if (r.personne_id) {
+      const p = state.personnes.find((x) => x.id === r.personne_id);
+      if (p) { nom = p.nom; prenom = p.prenom; tel = p.telephone || ""; photo = photo || p.photo_url; }
+    }
+    if (!nom && !prenom) prenom = r.nom_personnage || "";
+    return { ...r, nom, prenom, tel, photo };
+  });
+
+  const nbPresents = enrichis.filter((r) => r.present).length;
+  document.getElementById("presence-count").textContent = `${nbPresents} / ${enrichis.length} marqué(s) présent(e)`;
+
+  container.innerHTML = enrichis.map((r) => `
+    <div class="person-card" id="presence-card-${r.id}" style="${r.present ? "outline:2px solid var(--green);" : ""}">
+      <div class="photo" style="${r.photo ? `background-image:url('${esc(r.photo)}')` : ""}">${r.photo ? "" : ""}</div>
+      <div class="info">
+        <div class="name">${esc(prenomNomAffiche(r))}</div>
+        <div class="meta">${esc(r.nom_personnage || "")}</div>
+        <div class="meta">${r.tel ? "Tél : " + esc(r.tel) : ""}</div>
+        <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px;">
+          <input type="checkbox" class="presence-checkbox" data-id="${r.id}" ${r.present ? "checked" : ""}>
+          Présent(e)
+        </label>
+      </div>
+    </div>
+  `).join("");
+
+  document.querySelectorAll(".presence-checkbox").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      await sb.from("depouillement_roles").update({ present: cb.checked }).eq("id", cb.dataset.id);
+      const card = document.getElementById("presence-card-" + cb.dataset.id);
+      card.style.outline = cb.checked ? "2px solid var(--green)" : "";
+      const total = document.querySelectorAll(".presence-checkbox").length;
+      const presents = document.querySelectorAll(".presence-checkbox:checked").length;
+      document.getElementById("presence-count").textContent = `${presents} / ${total} marqué(s) présent(e)`;
+    });
+  });
+}
+
+function prenomNomAffiche(r) {
+  return `${r.prenom} ${r.nom}`.trim();
+}
+
+document.getElementById("btn-presence-print").addEventListener("click", () => {
+  const jour = state.jours.find((j) => j.id === state.currentPresenceJourId);
+  const win = window.open("", "_blank");
+  const cartes = document.getElementById("presence-content").innerHTML;
+  win.document.write(`
+    <html><head><title>Présence figurants - ${esc(jour ? jour.jour_tournage : "")}</title>
+    <style>
+      body{ font-family: Arial, sans-serif; padding:20px; }
+      h1{ font-size:20px; }
+      .grid{ display:flex; flex-wrap:wrap; gap:14px; }
+      .card{ width:140px; border:1px solid #ccc; border-radius:8px; padding:8px; text-align:center; }
+      .card img, .card .ph{ width:100%; height:120px; object-fit:contain; background:#f2f2f2; border-radius:6px; }
+      .name{ font-weight:bold; margin-top:6px; }
+      .meta{ font-size:12px; color:#555; }
+    </style>
+    </head><body>
+      <h1>Présence figurants — ${esc(jour ? jour.jour_tournage : "")}</h1>
+      <div class="grid">
+        ${document.querySelectorAll("#presence-content .person-card").length
+          ? Array.from(document.querySelectorAll("#presence-content .person-card")).map((card) => {
+              const name = card.querySelector(".name")?.textContent || "";
+              const metas = Array.from(card.querySelectorAll(".meta")).map((m) => m.textContent).filter(Boolean);
+              const bg = card.querySelector(".photo")?.style.backgroundImage || "";
+              const urlMatch = bg.match(/url\(['"]?(.*?)['"]?\)/);
+              const imgUrl = urlMatch ? urlMatch[1] : "";
+              const checked = card.querySelector(".presence-checkbox")?.checked;
+              return `<div class="card">${imgUrl ? `<img src="${imgUrl}">` : `<div class="ph"></div>`}<div class="name">${name}</div>${metas.map((m) => `<div class="meta">${m}</div>`).join("")}<div class="meta">${checked ? "☑ Présent(e)" : "☐ Présent(e)"}</div></div>`;
+            }).join("")
+          : ""}
+      </div>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+});
+
+document.getElementById("btn-presence-email").addEventListener("click", () => {
+  const jour = state.jours.find((j) => j.id === state.currentPresenceJourId);
+  if (!jour) { alert("Choisis d'abord un jour."); return; }
+  const cards = Array.from(document.querySelectorAll("#presence-content .person-card"));
+  const lignes = cards.map((card) => {
+    const name = card.querySelector(".name")?.textContent || "";
+    const metas = Array.from(card.querySelectorAll(".meta")).map((m) => m.textContent).filter(Boolean).join(" — ");
+    return `${name}${metas ? " — " + metas : ""}`;
+  });
+  const body = `Liste des figurants — ${jour.jour_tournage}\n\n` + lignes.join("\n");
+  window.location.href = `mailto:?subject=${encodeURIComponent("Figurants - " + jour.jour_tournage)}&body=${encodeURIComponent(body)}`;
+});
+
+document.getElementById("btn-presence-whatsapp").addEventListener("click", () => {
+  const jour = state.jours.find((j) => j.id === state.currentPresenceJourId);
+  if (!jour) { alert("Choisis d'abord un jour."); return; }
+  const cards = Array.from(document.querySelectorAll("#presence-content .person-card"));
+  const lignes = cards.map((card) => {
+    const name = card.querySelector(".name")?.textContent || "";
+    const metas = Array.from(card.querySelectorAll(".meta")).map((m) => m.textContent).filter(Boolean).join(" — ");
+    return `${name}${metas ? " — " + metas : ""}`;
+  });
+  const text = `Liste des figurants — ${jour.jour_tournage}\n\n` + lignes.join("\n");
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+});
 
 async function renderListeJour(jourId) {
   const container = document.getElementById("liste-jour-content");
