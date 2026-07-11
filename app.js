@@ -850,6 +850,45 @@ async function runAiExtraction() {
       resultsBox.innerHTML = `<div style="color:var(--text-muted);">Aucune information exploitable trouvée. Vérifie le fichier ou complète manuellement.</div>`;
     }
 
+    // Détection de doublon : si cette personne existe peut-être déjà, proposer de mettre à jour sa fiche plutôt que d'en créer une nouvelle
+    if (!state.currentEditingPersonneId) {
+      const emailNorm = (d.email || "").trim().toLowerCase();
+      const nomNorm = (d.nom || "").trim().toLowerCase();
+      const prenomNorm = (d.prenom || "").trim().toLowerCase();
+      const doublon = state.personnes.find((p) => {
+        const memeEmail = emailNorm && (p.email || "").trim().toLowerCase() === emailNorm;
+        const memeNom = nomNorm && prenomNorm && (p.nom || "").trim().toLowerCase() === nomNorm && (p.prenom || "").trim().toLowerCase() === prenomNorm;
+        return memeEmail || memeNom;
+      });
+      if (doublon) {
+        const banner = document.createElement("div");
+        banner.style.cssText = "margin-top:10px; background:rgba(232,185,74,.12); border:1px solid var(--accent); border-radius:8px; padding:10px 12px;";
+        banner.innerHTML = `
+          <div style="margin-bottom:8px;">Une fiche existe peut-être déjà pour <strong>${esc(doublon.prenom)} ${esc(doublon.nom)}</strong>${doublon.photo_annee ? " (photo actuelle de " + doublon.photo_annee + ")" : ""}. Tu peux mettre à jour sa fiche existante avec cette nouvelle photo (l'ancienne sera conservée, datée, dans sa galerie) au lieu de créer un doublon.</div>
+          <button type="button" class="btn secondary" id="btn-maj-doublon">Mettre à jour la fiche existante</button>
+        `;
+        resultsBox.appendChild(banner);
+        document.getElementById("btn-maj-doublon").addEventListener("click", async () => {
+          const btn = document.getElementById("btn-maj-doublon");
+          btn.disabled = true;
+          btn.textContent = "Mise à jour en cours...";
+          try {
+            if (mainPhotoFile) {
+              const url = await uploadToStorage(mainPhotoFile, "photos");
+              await setPhotoTrombi(doublon.id, url);
+            } else {
+              closeModal();
+              await openFicheModal(doublon.id);
+            }
+          } catch (err) {
+            alert("Erreur : " + err.message);
+            btn.disabled = false;
+            btn.textContent = "Mettre à jour la fiche existante";
+          }
+        });
+      }
+    }
+
     status.textContent = `Champs pré-remplis${mainPhotoFile ? " (photo reprise automatiquement)" : ""}${nbExtra ? ` — ${nbExtra} fichier(s) en attente` : ""}. Vérifie ci-dessous et dans le formulaire avant d'enregistrer.`;
   } catch (e) {
     status.textContent = "Erreur : " + e.message;
