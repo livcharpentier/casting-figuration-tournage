@@ -333,6 +333,7 @@
       <button class="subtab-btn active" data-subtab="documents">Pièces à déposer</button>
       <button class="subtab-btn" data-subtab="casting">Dépouillement</button>
       <button class="subtab-btn" data-subtab="liste-jour">Liste du jour</button>
+      <button class="subtab-btn" data-subtab="presence">Présence figurants</button>
       <button class="subtab-btn" data-subtab="hmc">Préparation HMC</button>
     </div>
 
@@ -387,6 +388,18 @@
       </div>
       <div id="sequences-jour-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
       <div id="liste-jour-content"></div>
+    </div>
+
+    <!-- SOUS-ONGLET : Présence figurants (trombinoscope + pointage) -->
+    <div class="subtab-panel" id="subtab-presence">
+      <div class="jour-select-bar">
+        <select id="presence-jour-select"></select>
+        <button class="btn secondary" id="btn-presence-print">Imprimer / Exporter PDF</button>
+        <button class="btn secondary" id="btn-presence-email">Envoyer par email</button>
+        <button class="btn secondary" id="btn-presence-whatsapp">Envoyer par WhatsApp</button>
+      </div>
+      <div id="presence-count" style="font-size:13px; color:var(--text-muted); margin-bottom:10px;"></div>
+      <div id="presence-content" class="grid-cards"></div>
     </div>
 
     <!-- SOUS-ONGLET : Préparation HMC -->
