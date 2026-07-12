@@ -337,6 +337,7 @@
       <button class="subtab-btn" data-subtab="presence">Présence figurants</button>
       <button class="subtab-btn" data-subtab="emargement">Émargement</button>
       <button class="subtab-btn" data-subtab="contrats">Contrats</button>
+      <button class="subtab-btn" data-subtab="prepaye">Pré-paye</button>
       <button class="subtab-btn" data-subtab="hmc">Préparation HMC</button>
     </div>
 
@@ -440,6 +441,16 @@
         </div>
       </div>
       <div id="contrat-status" style="font-size:12px; color:var(--text-muted); margin-top:10px;"></div>
+    </div>
+
+    <!-- SOUS-ONGLET : Pré-paye (Hot Cost) -->
+    <div class="subtab-panel" id="subtab-prepaye">
+      <div class="jour-select-bar">
+        <select id="prepaye-jour-select"></select>
+        <button class="btn secondary" id="btn-prepaye-export">Exporter en Excel</button>
+      </div>
+      <div id="prepaye-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
+      <div id="prepaye-content"></div>
     </div>
 
     <!-- SOUS-ONGLET : Préparation HMC -->
