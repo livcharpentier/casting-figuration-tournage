@@ -450,6 +450,46 @@ async function quickDeletePersonne(id) {
 document.getElementById("search-personnes").addEventListener("input", renderPersonnesGrid);
 document.getElementById("filter-type-personne").addEventListener("change", renderPersonnesGrid);
 document.getElementById("filter-genre-personne").addEventListener("change", renderPersonnesGrid);
+
+document.getElementById("btn-deviner-genre").addEventListener("click", async () => {
+  const status = document.getElementById("deviner-genre-status");
+  const aTraiter = state.personnes.filter((p) => !p.genre);
+  if (!aTraiter.length) { status.textContent = "Tout le monde a déjà un genre renseigné."; return; }
+
+  if (!confirm(`${aTraiter.length} personne(s) sans genre renseigné. Lancer la devinette automatique (à partir du prénom et de l'âge) ?`)) return;
+
+  const TAILLE_PAQUET = 60;
+  const nbPaquets = Math.ceil(aTraiter.length / TAILLE_PAQUET);
+  let totalDevines = 0;
+
+  for (let p = 0; p < nbPaquets; p++) {
+    const debut = p * TAILLE_PAQUET;
+    const fin = Math.min(debut + TAILLE_PAQUET, aTraiter.length);
+    const paquet = aTraiter.slice(debut, fin);
+    status.innerHTML = `<span class="spinner"></span> Devinette en cours : ${debut + 1} à ${fin} sur ${aTraiter.length}...`;
+
+    const texte = paquet.map((per, i) => `${i} | ${per.prenom} | ${per.nom} | ${per.age || ""}`).join("\n");
+    try {
+      const resultats = await callExtractPdtApi({ type: "genre_personnes", texte });
+      for (const r of resultats) {
+        const idx = Number(r.numero);
+        const per = paquet[idx];
+        if (per && r.genre && ["Homme", "Femme", "Enfant"].includes(r.genre)) {
+          await sb.from("personnes").update({ genre: r.genre }).eq("id", per.id);
+          per.genre = r.genre;
+          totalDevines++;
+        }
+      }
+    } catch (err) {
+      status.textContent = "Erreur : " + err.message;
+      return;
+    }
+  }
+
+  status.textContent = `${totalDevines} genre(s) deviné(s) et enregistré(s) sur ${aTraiter.length} personne(s) traitée(s).`;
+  await loadPersonnes();
+});
+
 document.getElementById("btn-new-personne").addEventListener("click", () => openPersonneModal(null));
 
 function personneFormFields(p = {}) {
