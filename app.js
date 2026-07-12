@@ -29,6 +29,8 @@ let state = {
   filmDocumentsCache: [],
   currentPresenceJourId: null,
   currentEmargementJourId: null,
+  currentContratJourId: null,
+  contratRolesJour: [],
 };
 
 // ==========================================================
@@ -530,6 +532,24 @@ function personneFormFields(p = {}) {
   </fieldset>
 
   <fieldset>
+    <legend>Infos administratives (pour les contrats)</legend>
+    <div class="field-row">
+      <div class="field"><label>Lieu de naissance</label><input type="text" id="f-lieu-naissance" value="${esc(p.lieu_naissance)}" placeholder="Ville et pays"></div>
+      <div class="field"><label>Nationalité</label><input type="text" id="f-nationalite" value="${esc(p.nationalite)}"></div>
+      <div class="field"><label>N° Sécurité Sociale</label><input type="text" id="f-num-secu" value="${esc(p.num_secu_sociale)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Situation familiale</label><input type="text" id="f-situation-familiale" value="${esc(p.situation_familiale)}" placeholder="CÉLIBATAIRE, MARIÉ(E)..."></div>
+      <div class="field"><label>Nb enfants à charge</label><input type="text" id="f-nb-enfants" value="${esc(p.nb_enfants_charge)}"></div>
+      <div class="field"><label>Nom de jeune fille</label><input type="text" id="f-nom-jeune-fille" value="${esc(p.nom_jeune_fille)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Centre de Sécurité Sociale</label><input type="text" id="f-centre-secu" value="${esc(p.centre_secu_sociale)}"></div>
+      <div class="field"><label>Personne à prévenir (nom + tél)</label><input type="text" id="f-personne-prevenir" value="${esc(p.personne_a_prevenir)}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
     <legend>Notes</legend>
     <textarea id="f-notes" style="width:100%; min-height:50px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px;">${esc(p.notes)}</textarea>
   </fieldset>
@@ -913,6 +933,9 @@ async function savePersonne() {
     lien_showreel: val("f-showreel"), lien_site_web: val("f-site"), agence: val("f-agence"),
     lien_instagram: val("f-instagram"), lien_agent: val("f-lien-agent"),
     experience_parcours: val("f-experience"),
+    lieu_naissance: val("f-lieu-naissance"), nationalite: val("f-nationalite"), num_secu_sociale: val("f-num-secu"),
+    situation_familiale: val("f-situation-familiale"), nb_enfants_charge: val("f-nb-enfants"), nom_jeune_fille: val("f-nom-jeune-fille"),
+    centre_secu_sociale: val("f-centre-secu"), personne_a_prevenir: val("f-personne-prevenir"),
     photo_annee: num("f-photo-annee"), notes: val("f-notes"),
     updated_at: new Date().toISOString(),
   };
@@ -1218,6 +1241,7 @@ async function initFilmSelectors() {
   await loadJoursDropdown("liste-jour-select", onListeJourChange);
   await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
   await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
+  await loadJoursDropdown("contrat-jour-select", onContratJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 
@@ -1229,6 +1253,7 @@ async function onFilmChange(newFilmId) {
   await loadJoursDropdown("liste-jour-select", onListeJourChange);
   await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
   await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
+  await loadJoursDropdown("contrat-jour-select", onContratJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
   await loadFilmDocuments(newFilmId);
 }
@@ -1265,6 +1290,21 @@ async function openInfosFilmModal() {
     <div class="field-row">
       <div class="field"><label>Directeur / Directrice de production</label><input type="text" id="f-directeur-production" value="${esc(film.directeur_production)}"></div>
     </div>
+    <fieldset>
+      <legend>Infos légales (pour les contrats)</legend>
+      <div class="field-row">
+        <div class="field"><label>Forme juridique</label><input type="text" id="f-forme-juridique" value="${esc(film.forme_juridique)}" placeholder="ex SARL"></div>
+        <div class="field"><label>Capital social</label><input type="text" id="f-capital-social" value="${esc(film.capital_social)}" placeholder="ex 45 000 Euros"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>RCS</label><input type="text" id="f-rcs" value="${esc(film.rcs)}" placeholder="ex RCS Tours 502 529 472"></div>
+        <div class="field"><label>SIRET</label><input type="text" id="f-siret" value="${esc(film.siret)}"></div>
+        <div class="field"><label>Code APE</label><input type="text" id="f-code-ape" value="${esc(film.code_ape)}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>N° objet (agrément)</label><input type="text" id="f-numero-objet" value="${esc(film.numero_objet)}"></div>
+      </div>
+    </fieldset>
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
       <button class="btn secondary" onclick="closeModal()">Annuler</button>
       <button class="btn" id="btn-save-infos-film">Enregistrer</button>
@@ -1277,6 +1317,12 @@ async function openInfosFilmModal() {
       adresse_production: document.getElementById("f-adresse-production").value,
       telephone_production: document.getElementById("f-telephone-production").value,
       directeur_production: document.getElementById("f-directeur-production").value,
+      forme_juridique: document.getElementById("f-forme-juridique").value,
+      capital_social: document.getElementById("f-capital-social").value,
+      rcs: document.getElementById("f-rcs").value,
+      siret: document.getElementById("f-siret").value,
+      code_ape: document.getElementById("f-code-ape").value,
+      numero_objet: document.getElementById("f-numero-objet").value,
     };
     const { error } = await sb.from("films").update(maj).eq("id", state.currentFilmId);
     if (error) { alert("Erreur : " + error.message); return; }
@@ -1989,6 +2035,141 @@ document.getElementById("btn-emargement-print").addEventListener("click", async 
           `).join("")}
         </tbody>
       </table>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+});
+
+// ==========================================================
+// CONTRATS (lettre d'engagement d'acteur de complément)
+// ==========================================================
+async function onContratJourChange(jourId) {
+  state.currentContratJourId = jourId || null;
+  const select = document.getElementById("contrat-personne-select");
+  document.getElementById("contrat-details-panel").style.display = "none";
+  document.getElementById("contrat-status").textContent = "";
+  if (!jourId) { select.innerHTML = `<option value="">— Choisir une personne du jour —</option>`; return; }
+
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  state.contratRolesJour = roles || [];
+  select.innerHTML = `<option value="">— Choisir une personne du jour —</option>` +
+    state.contratRolesJour.map((r) => {
+      let label = r.nom_personnage || "Rôle";
+      if (r.personne_id) {
+        const p = state.personnes.find((x) => x.id === r.personne_id);
+        if (p) label = `${p.prenom} ${p.nom}`;
+      }
+      return `<option value="${r.id}">${esc(label)}</option>`;
+    }).join("");
+}
+document.getElementById("contrat-jour-select").addEventListener("change", (e) => onContratJourChange(e.target.value));
+
+document.getElementById("contrat-personne-select").addEventListener("change", (e) => {
+  const roleId = e.target.value;
+  const panel = document.getElementById("contrat-details-panel");
+  if (!roleId) { panel.style.display = "none"; return; }
+  panel.style.display = "block";
+  const jour = state.jours.find((j) => j.id === state.currentContratJourId);
+  document.getElementById("c-ville-signature").value = document.getElementById("c-ville-signature").value || "";
+  document.getElementById("c-lieu-tournage").value = document.getElementById("c-lieu-tournage").value || "";
+});
+
+function joursSemaineMoisFr(dateStr) {
+  return formaterDateFr(dateStr);
+}
+
+document.getElementById("btn-contrat-print").addEventListener("click", () => {
+  const roleId = document.getElementById("contrat-personne-select").value;
+  if (!roleId) { alert("Choisis une personne."); return; }
+  const role = (state.contratRolesJour || []).find((r) => r.id === roleId);
+  if (!role || !role.personne_id) { alert("Cette ligne n'est pas reliée à une fiche personne complète (nécessaire pour générer le contrat). Assigne une personne de la base dans le Dépouillement."); return; }
+  const p = state.personnes.find((x) => x.id === role.personne_id);
+  if (!p) { alert("Personne introuvable."); return; }
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  const jour = state.jours.find((j) => j.id === state.currentContratJourId);
+
+  const lieuTournage = document.getElementById("c-lieu-tournage").value;
+  const montantBrut = document.getElementById("c-montant-brut").value;
+  const villeSignature = document.getElementById("c-ville-signature").value || lieuTournage;
+  const dateAffichee = joursSemaineMoisFr(jour ? jour.date_tournage : "");
+
+  const win = window.open("", "_blank");
+  win.document.write(`
+    <html><head><title>Lettre d'engagement - ${esc(p.prenom)} ${esc(p.nom)}</title>
+    <style>
+      @page { margin: 15mm; }
+      body{ font-family: Arial, sans-serif; font-size:10.5px; color:#111; line-height:1.35; }
+      h1{ font-size:12px; text-align:center; margin:2px 0; }
+      .entete{ font-size:9px; text-align:center; margin-bottom:8px; }
+      .titre-contrat{ text-align:center; font-weight:bold; font-size:11px; margin:10px 0; }
+      table.infos{ width:100%; border-collapse:collapse; margin-bottom:8px; }
+      table.infos td{ padding:2px 4px; vertical-align:top; }
+      .label{ font-weight:bold; }
+      .page-break{ page-break-before: always; }
+      p{ text-align:justify; margin:6px 0; }
+      .signature-zone{ margin-top:20px; }
+    </style>
+    </head><body>
+      <h1>${esc(film?.nom_production || "")}</h1>
+      <div class="entete">
+        FILM : "${esc(film?.nom || "")}" de ${esc(film?.realisateur || "")}${film?.numero_objet ? " (N° objet : " + esc(film.numero_objet) + ")" : ""}<br>
+        ${esc(film?.adresse_production || "")} — ${esc(film?.forme_juridique || "")} au capital de ${esc(film?.capital_social || "")}${film?.rcs ? " – " + esc(film.rcs) : ""}${film?.siret ? " – SIRET " + esc(film.siret) : ""}${film?.code_ape ? " – code APE " + esc(film.code_ape) : ""}
+      </div>
+      <div class="titre-contrat">LETTRE D'ENGAGEMENT D'ACTEUR DE COMPLÉMENT – CDDU (Art L1242 du code du travail) - CCNPC titre 3 sous-titre 2</div>
+      <p style="text-align:center;">RÈGLEMENT UNIQUEMENT PAR VIREMENT — MERCI DE JOINDRE UN RIB À VOTRE NOM</p>
+
+      <table class="infos">
+        <tr><td class="label" colspan="2">Le Salarié – L'Acteur de complément</td></tr>
+        <tr><td><span class="label">NOM :</span> ${esc(p.nom)}</td><td><span class="label">PRENOM :</span> ${esc(p.prenom)}</td></tr>
+        <tr><td colspan="2"><span class="label">Nom de jeune fille :</span> ${esc(p.nom_jeune_fille) || "-"}</td></tr>
+        <tr><td colspan="2"><span class="label">Adresse fiscale :</span> ${esc(p.adresse)}</td></tr>
+        <tr><td><span class="label">Portable :</span> ${esc(p.telephone)}</td><td><span class="label">Mail :</span> ${esc(p.email)}</td></tr>
+        <tr><td><span class="label">Date de naissance :</span> ${esc(p.date_naissance)}</td><td><span class="label">Lieu de naissance :</span> ${esc(p.lieu_naissance)}</td></tr>
+        <tr><td><span class="label">Nationalité :</span> ${esc(p.nationalite)}</td><td></td></tr>
+        <tr><td colspan="2"><span class="label">N° Sécurité Sociale :</span> ${esc(p.num_secu_sociale)}</td></tr>
+        <tr><td><span class="label">Situation de famille :</span> ${esc(p.situation_familiale)}</td><td><span class="label">Nb enfants à charge :</span> ${esc(p.nb_enfants_charge)}</td></tr>
+        <tr><td colspan="2"><span class="label">Centre de Sécurité Sociale :</span> ${esc(p.centre_secu_sociale)}</td></tr>
+        <tr><td colspan="2"><span class="label">Personne à prévenir en cas d'accident :</span> ${esc(p.personne_a_prevenir)}</td></tr>
+      </table>
+
+      <p>Le présent contrat prend effet le <strong>${esc(dateAffichee)}</strong> pour une durée de 1 journée de tournage.<br>
+      Montant brut par cachet : <strong>${esc(montantBrut)} €</strong> — Lieu de Tournage : <strong>${esc(lieuTournage)}</strong></p>
+
+      <p>Suite à nos entretiens, nous vous confirmons que nous vous engageons aux conditions ci-après exposées en qualité d'ACTEUR DE COMPLÉMENT en vue de la réalisation de l'ŒUVRE, produite notamment par ${esc(film?.nom_production || "")} (ci-après le « PRODUCTEUR »), qui sera exploitée en tout ou partie par tous moyens de diffusion connus ou à connaître, notamment par exploitation télévisuelle, gratuite, payante, par exploitation dématérialisée sur tous supports de réception « en ligne », par tous services de communication électronique et de média audiovisuels à la demande, par VOD, NVOD, FVD, EST, SVOD, Catch up TV, etc., par vidéogrammes, disques, par exploitation cinématographique, etc.</p>
+
+      <p><strong>EFFET – DURÉE</strong><br>
+      Il ne nous sera en aucun cas fait obligation de proroger le présent engagement après son expiration, même si le tournage des séquences vous concernant n'est pas terminé. La fin de la période d'engagement prévue aux présentes, prorogée éventuellement de la durée de dépassement, en constitue le terme. Il n'y aura lieu à aucun préavis.</p>
+
+      <p><strong>CESSION DE DROITS</strong><br>
+      Vous acceptez d'être photographié(e) et de participer aux prises de vues de l'ŒUVRE. Vous confirmez être irrévocablement d'accord pour que la ou les société(s), notamment le PRODUCTEUR, qui produisent, distribuent, exploitent l'ŒUVRE, conservent tous les droits quels qu'ils soient, concernant la photographie et l'image en négatif ou positif, vous représentant ; pour que la ou les société(s) puissent utiliser et réutiliser ces photographies ou images à leur gré, pour des films et leur exploitation par tout autre moyen connu ou inconnu à ce jour, accompagné ou non du son enregistré, postsynchronisé ou doublé d'un commentaire ou d'un dialogue, ainsi que pour la promotion de ces programmes, et ce pendant la durée légale de protection de droit d'auteur et dans le monde entier.<br>
+      Compte tenu du rôle pour lequel il a été engagé, de la courte durée et du caractère interchangeable et accessoire de son intervention, vous reconnaissez que votre prestation ne peut donner lieu ni à la reconnaissance d'un droit dit voisin du droit d'auteur, au sens des articles L. 212-1 et suivants du Code de la propriété intellectuelle, ni au versement d'une rémunération complémentaire à ce titre.</p>
+
+      <p><strong>CONFIDENTIALITÉ</strong><br>
+      Vous vous interdisez toute communication quelle qu'elle soit, concernant l'Œuvre, auprès de tout tiers, notamment presse, radio et télévision ou réseaux sociaux, avant la première exploitation commerciale de l'Œuvre, sans l'accord préalable du Producteur.</p>
+
+      <p><strong>RÉMUNÉRATION</strong><br>
+      ${esc(film?.nom_production || "Le Producteur")} met en place la dématérialisation de vos bulletins de paie, AEM. Par la présente, vous acceptez d'adhérer à ce service.</p>
+
+      <p>Fait à ${esc(villeSignature)}, en 2 exemplaires originaux, le ${esc(dateAffichee)}</p>
+
+      <div class="signature-zone">
+        <p>L'ACTEUR DE COMPLÉMENT<br>
+        précédée de la mention « Lu et approuvé, bon pour accord »</p>
+        <br><br>
+        <p>LE DIRECTEUR DE PRODUCTION<br>${esc(film?.directeur_production || "")}</p>
+      </div>
+
+      <div class="page-break"></div>
+      <p style="text-align:center; font-weight:bold;">CONDITIONS GÉNÉRALES DU CONTRAT</p>
+      <p><strong>Art. 1 :</strong> Le présent contrat n'est en aucun cas renouvelable par tacite reconduction. Il prendra fin au terme convenu, de plein droit, sans préavis ni indemnité. Une déclaration unique d'embauche sera effectuée en temps utiles auprès de l'URSSAF compétente, sur laquelle le Salarié pourra exercer son droit d'accès et de rectification que lui confère la Loi du 6 janvier 1978.</p>
+      <p><strong>Art. 2 :</strong> Le Salarié s'engage à respecter les accords collectifs et la réglementation en vigueur au sein de la Société, notamment le règlement intérieur et les consignes de sécurité mentionnées sur le lieu de travail. Le Salarié est tenu de se conformer strictement aux instructions de la Société ou de ses représentants en ce qui concerne le lieu, l'horaire, le programme et les conditions de travail. Toute absence sera sanctionnée par le non versement du salaire. Toute absence/interruption injustifiée, ou retard significatif pourra être constitutif d'une faute grave, pouvant engendrer la rupture anticipée du présent contrat au regard de l'article L.1243-1 du code du travail.</p>
+      <p><strong>Art. 3 :</strong> Le Salarié s'engage à ne pas utiliser sa collaboration avec la Société à des fins de publicité personnelle ou commerciale sans autorisation préalable, et à respecter l'obligation de discrétion et de confidentialité qui s'y attache, y compris après la cessation du contrat.</p>
+      <p><strong>Art. 4 :</strong> Le présent contrat est conclu sous réserve que le Salarié soit en possession des autorisations professionnelles nécessaires, d'une carte de contrôle médical à jour, et soit en règle vis-à-vis des différents organismes sociaux.</p>
+      <p><strong>Art. 9 :</strong> Le Salarié autorise la Société à fixer, reproduire, représenter, éditer sa prestation, et ce sur tous supports et par tous modes d'exploitation connus ou inconnus à ce jour, en toutes versions, langues, intégralement ou en extraits. Le salaire versé couvre la cession de ses droits sur sa prestation pour toutes les utilisations exposées, sans réserve.</p>
+      <p><strong>Art. 12 :</strong> Traitement des données personnelles du Salarié (Règlement Général sur le traitement des données personnelles n°2016/679). Les données personnelles du Salarié sont conservées pour une durée de 5 ans après la date de rupture du présent contrat. Le Salarié bénéficie d'un droit d'accès, de rectification, d'effacement, à la limitation du traitement et à la portabilité de ses données.</p>
+      <p><strong>Art. 13 :</strong> Le présent contrat est soumis à la loi française. Toutes contestations relatives à l'exécution et l'interprétation du présent contrat devront être portées devant les tribunaux compétents.</p>
     </body></html>
   `);
   win.document.close();
