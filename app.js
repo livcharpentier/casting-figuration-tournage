@@ -1421,10 +1421,12 @@ function genererImpressionTrombinoscope(mode) {
       ? ""
       : `
         ${p.telephone ? `<div class="ligne">Tél : ${esc(p.telephone)}</div>` : ""}
+        ${p.email ? `<div class="ligne">Mail : ${esc(p.email)}</div>` : ""}
         ${p.taille_cm ? `<div class="ligne">Taille : ${p.taille_cm} cm</div>` : ""}
         ${p.age ? `<div class="ligne">Âge : ${p.age} ans</div>` : ""}
-        ${p.metier ? `<div class="ligne">Métier : ${esc(p.metier)}</div>` : ""}
+        ${p.metier ? `<div class="ligne">Profession : ${esc(p.metier)}</div>` : ""}
         ${p.permis_conduire ? `<div class="ligne">Permis : ${esc(p.types_permis || "oui")}</div>` : ""}
+        ${p.experience_parcours ? `<div class="ligne parcours">${esc(p.experience_parcours.slice(0, 220))}${p.experience_parcours.length > 220 ? "…" : ""}</div>` : ""}
         ${p.libelle ? `<div class="ligne">${esc(p.libelle)}</div>` : ""}
       `;
     return `
@@ -1449,6 +1451,7 @@ function genererImpressionTrombinoscope(mode) {
       .pas-photo{ width:100%; aspect-ratio:3/4; background:#f2f2f2; border-radius:3px; }
       .nom{ font-weight:bold; font-size:${estReduit ? "10px" : "11px"}; margin-top:3px; }
       .ligne{ font-size:9px; color:#333; }
+      .ligne.parcours{ font-style:italic; color:#555; text-align:left; margin-top:3px; }
     </style>
     </head><body>
       <h1>Trombinoscope — ${esc(planche)} (${liste.length} personne${liste.length > 1 ? "s" : ""})</h1>
