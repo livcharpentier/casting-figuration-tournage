@@ -327,6 +327,7 @@
       <strong style="font-size:13px; color:var(--text-muted);">Film :</strong>
       <select id="film-select-depouillement"></select>
       <button class="btn secondary" id="btn-new-film-depouillement">+ Nouveau film</button>
+      <button class="btn secondary" id="btn-infos-film">Infos du film</button>
     </div>
 
     <div class="subtabs-bar" style="display:flex; gap:2px; margin-bottom:16px; flex-wrap:wrap;">
@@ -334,6 +335,7 @@
       <button class="subtab-btn" data-subtab="casting">Dépouillement</button>
       <button class="subtab-btn" data-subtab="liste-jour">Liste du jour</button>
       <button class="subtab-btn" data-subtab="presence">Présence figurants</button>
+      <button class="subtab-btn" data-subtab="emargement">Émargement</button>
       <button class="subtab-btn" data-subtab="hmc">Préparation HMC</button>
     </div>
 
@@ -400,6 +402,16 @@
       </div>
       <div id="presence-count" style="font-size:13px; color:var(--text-muted); margin-bottom:10px;"></div>
       <div id="presence-content" class="grid-cards"></div>
+    </div>
+
+    <!-- SOUS-ONGLET : Émargement -->
+    <div class="subtab-panel" id="subtab-emargement">
+      <div class="jour-select-bar">
+        <select id="emargement-jour-select"></select>
+        <button class="btn secondary" id="btn-emargement-print">Imprimer la feuille d'émargement</button>
+      </div>
+      <div id="emargement-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
+      <div id="emargement-content"></div>
     </div>
 
     <!-- SOUS-ONGLET : Préparation HMC -->
