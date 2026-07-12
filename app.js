@@ -2138,6 +2138,12 @@ function genererContratBodyHtml(p, film, dateAffichee, lieuTournage, montantBrut
 }
 
 function ouvrirImpressionContrats(titre, corpsHtml) {
+  const exemplaire = (label) => `
+    <div class="exemplaire-tag">EXEMPLAIRE — ${esc(label)}</div>
+    ${corpsHtml}
+  `;
+  const corpsAvecDeuxExemplaires = `${exemplaire("PRODUCTION")}<div class="contrat-suivant">${exemplaire("SALARIÉ (à conserver)")}</div>`;
+
   const win = window.open("", "_blank");
   win.document.write(`
     <html><head><title>${esc(titre)}</title>
@@ -2147,6 +2153,7 @@ function ouvrirImpressionContrats(titre, corpsHtml) {
       h1{ font-size:12px; text-align:center; margin:2px 0; }
       .entete{ font-size:9px; text-align:center; margin-bottom:8px; }
       .titre-contrat{ text-align:center; font-weight:bold; font-size:11px; margin:10px 0; }
+      .exemplaire-tag{ text-align:right; font-size:9px; font-weight:bold; color:#666; border-bottom:1px solid #999; padding-bottom:3px; margin-bottom:6px; }
       table.infos{ width:100%; border-collapse:collapse; margin-bottom:8px; }
       table.infos td{ padding:2px 4px; vertical-align:top; }
       .label{ font-weight:bold; }
@@ -2155,7 +2162,7 @@ function ouvrirImpressionContrats(titre, corpsHtml) {
       p{ text-align:justify; margin:6px 0; }
       .signature-zone{ margin-top:20px; }
     </style>
-    </head><body>${corpsHtml}</body></html>
+    </head><body>${corpsAvecDeuxExemplaires}</body></html>
   `);
   win.document.close();
   win.focus();
