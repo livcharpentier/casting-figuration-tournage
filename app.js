@@ -144,9 +144,21 @@ function renderPersonnesGrid() {
         <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" : ""}</div>
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
         <div style="margin-top:4px;">${photoDateBadgeHtml(p.photo_annee)}</div>
+        <select onclick="event.stopPropagation()" onchange="event.stopPropagation(); corrigerGenreRapide('${p.id}', this.value)" style="margin-top:6px; width:100%; font-size:11px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:3px 4px;">
+          <option value="" ${!p.genre ? "selected" : ""}>Genre ?</option>
+          <option value="Homme" ${p.genre === "Homme" ? "selected" : ""}>Homme</option>
+          <option value="Femme" ${p.genre === "Femme" ? "selected" : ""}>Femme</option>
+          <option value="Enfant" ${p.genre === "Enfant" ? "selected" : ""}>Enfant</option>
+        </select>
       </div>
     </div>
   `).join("");
+}
+
+async function corrigerGenreRapide(personneId, genre) {
+  await sb.from("personnes").update({ genre: genre || null }).eq("id", personneId);
+  const p = state.personnes.find((x) => x.id === personneId);
+  if (p) p.genre = genre || null;
 }
 
 function photoDateBadgeHtml(year) {
