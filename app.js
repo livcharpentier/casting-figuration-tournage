@@ -76,6 +76,32 @@ function fileToBase64(file) {
 // Redimensionne et recompresse une image avant de l'envoyer à l'IA, pour éviter
 // de dépasser la taille maximale acceptée par le serveur (plusieurs photos haute
 // résolution peuvent vite peser très lourd une fois encodées en base64).
+// Convertit un PDF (ex: CV) en une série d'images compressées (une par page, jusqu'à maxPages)
+// au lieu d'envoyer le PDF brut, pour éviter de dépasser la taille maximale acceptée par le serveur.
+async function convertirPdfEnImagesCompressees(file, maxPages = 3, maxDim = 1400, qualite = 0.75) {
+  if (typeof pdfjsLib !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const nbPages = Math.min(pdf.numPages, maxPages);
+  const images = [];
+  for (let i = 1; i <= nbPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewportBrut = page.getViewport({ scale: 1 });
+    const echelle = Math.min(1.6, maxDim / Math.max(viewportBrut.width, viewportBrut.height));
+    const viewport = page.getViewport({ scale: Math.max(echelle, 0.5) });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const dataUrl = canvas.toDataURL("image/jpeg", qualite);
+    images.push(dataUrl.split(",")[1]);
+  }
+  return images;
+}
+
 async function redimensionnerImagePourAnalyse(file, maxDim = 1400, qualite = 0.82) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -976,7 +1002,8 @@ async function analyserFichiers(files) {
         if (!mainPhotoFile) mainPhotoFile = file; // la 1ère image sert de photo principale
         else state.pendingDocsAfterSave.push({ file, type_document: "photo", categorie_photo: "autre" });
       } else if (file.type === "application/pdf") {
-        pdfs.push({ data: await fileToBase64(file) });
+        const pagesImages = await convertirPdfEnImagesCompressees(file);
+        pagesImages.forEach((data) => images.push({ data, mediaType: "image/jpeg" }));
         state.pendingDocsAfterSave.push({ file, type_document: "cv", categorie_photo: null });
       } else if (file.type.startsWith("video/")) {
         state.pendingDocsAfterSave.push({ file, type_document: "demo_video", categorie_photo: null });
