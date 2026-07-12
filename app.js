@@ -73,6 +73,33 @@ function fileToBase64(file) {
 
 // Détecte le vrai format d'une image à partir de ses premiers octets (signature),
 // car un fichier mal nommé (ex: .jpg qui est en réalité un PNG) trompe file.type.
+// Redimensionne et recompresse une image avant de l'envoyer à l'IA, pour éviter
+// de dépasser la taille maximale acceptée par le serveur (plusieurs photos haute
+// résolution peuvent vite peser très lourd une fois encodées en base64).
+async function redimensionnerImagePourAnalyse(file, maxDim = 1400, qualite = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+        else { width = Math.round((width * maxDim) / height); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      const dataUrl = canvas.toDataURL("image/jpeg", qualite);
+      resolve(dataUrl.split(",")[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Impossible de lire cette image")); };
+    img.src = url;
+  });
+}
+
 async function detecterTypeImageReel(file) {
   try {
     const buffer = await file.slice(0, 12).arrayBuffer();
@@ -762,12 +789,15 @@ async function openPersonneModal(id) {
     const photoInput = document.getElementById("ai-photo-input");
     const cvInput = document.getElementById("ai-cv-input");
     const dtPhoto = new DataTransfer();
-    Array.from(photoInput.files || []).forEach((f) => dtPhoto.items.add(f));
+    const dejaPhoto = Array.from(photoInput.files || []);
+    dejaPhoto.forEach((f) => dtPhoto.items.add(f));
     const dtCv = new DataTransfer();
-    Array.from(cvInput.files || []).forEach((f) => dtCv.items.add(f));
+    const dejaCv = Array.from(cvInput.files || []);
+    dejaCv.forEach((f) => dtCv.items.add(f));
+    const estDoublon = (liste, f) => liste.some((existant) => existant.name === f.name && existant.size === f.size);
     Array.from(e.dataTransfer.files).forEach((f) => {
-      if (f.type.startsWith("image/")) dtPhoto.items.add(f);
-      else dtCv.items.add(f);
+      if (f.type.startsWith("image/")) { if (!estDoublon(dejaPhoto, f)) dtPhoto.items.add(f); }
+      else { if (!estDoublon(dejaCv, f)) dtCv.items.add(f); }
     });
     photoInput.files = dtPhoto.files;
     cvInput.files = dtCv.files;
@@ -906,8 +936,12 @@ function enableDragDrop(zoneEl, fileInputEl, options = {}) {
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
       if (append && fileInputEl.multiple) {
         const dt = new DataTransfer();
-        Array.from(fileInputEl.files || []).forEach((f) => dt.items.add(f));
-        Array.from(e.dataTransfer.files).forEach((f) => dt.items.add(f));
+        const dejaPresents = Array.from(fileInputEl.files || []);
+        dejaPresents.forEach((f) => dt.items.add(f));
+        Array.from(e.dataTransfer.files).forEach((f) => {
+          const doublon = dejaPresents.some((existant) => existant.name === f.name && existant.size === f.size);
+          if (!doublon) dt.items.add(f);
+        });
         fileInputEl.files = dt.files;
       } else {
         fileInputEl.files = e.dataTransfer.files;
@@ -938,7 +972,7 @@ async function analyserFichiers(files) {
     for (const file of files) {
       nomsFichiers.push(file.name);
       if (file.type.startsWith("image/")) {
-        images.push({ data: await fileToBase64(file), mediaType: await detecterTypeImageReel(file) });
+        images.push({ data: await redimensionnerImagePourAnalyse(file), mediaType: "image/jpeg" });
         if (!mainPhotoFile) mainPhotoFile = file; // la 1ère image sert de photo principale
         else state.pendingDocsAfterSave.push({ file, type_document: "photo", categorie_photo: "autre" });
       } else if (file.type === "application/pdf") {
