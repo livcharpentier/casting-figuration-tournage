@@ -32,6 +32,7 @@ let state = {
   currentContratJourId: null,
   contratRolesJour: [],
   contratsPretsAImprimer: [],
+  currentPrepayeJourId: null,
 };
 
 // ==========================================================
@@ -1243,6 +1244,7 @@ async function initFilmSelectors() {
   await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
   await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
   await loadJoursDropdown("contrat-jour-select", onContratJourChange);
+  await loadJoursDropdown("prepaye-jour-select", onPrepayeJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 
@@ -1255,6 +1257,7 @@ async function onFilmChange(newFilmId) {
   await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
   await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
   await loadJoursDropdown("contrat-jour-select", onContratJourChange);
+  await loadJoursDropdown("prepaye-jour-select", onPrepayeJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
   await loadFilmDocuments(newFilmId);
 }
@@ -2229,6 +2232,136 @@ function imprimerContratIndex(i) {
   if (!c) return;
   ouvrirImpressionContrats(`Lettre d'engagement - ${c.p.prenom} ${c.p.nom}`, c.corps);
 }
+
+// ==========================================================
+// PRÉ-PAYE (type "Hot Cost" : récap présences/rémunérations par jour, groupé par type de rôle)
+// ==========================================================
+async function onPrepayeJourChange(jourId) {
+  state.currentPrepayeJourId = jourId || null;
+  const container = document.getElementById("prepaye-content");
+  const status = document.getElementById("prepaye-status");
+  if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis un jour de tournage.</div>`; status.textContent = ""; return; }
+  await renderPrepaye(jourId);
+}
+
+async function renderPrepaye(jourId) {
+  const container = document.getElementById("prepaye-content");
+  const status = document.getElementById("prepaye-status");
+  const jour = state.jours.find((j) => j.id === jourId);
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+  if (!list.length) { container.innerHTML = `<div class="empty-state">Aucun rôle casté pour ce jour.</div>`; status.textContent = ""; return; }
+
+  const groupes = {};
+  list.forEach((r) => {
+    const cle = r.type_role || "autre";
+    if (!groupes[cle]) groupes[cle] = [];
+    groupes[cle].push(r);
+  });
+
+  const roleLabels = Object.fromEntries(ROLE_TYPES.map((r) => [r.value, r.label]));
+
+  function ligneHtml(r) {
+    let nom = "", prenom = "", ville = "";
+    if (r.personne_id) {
+      const p = state.personnes.find((x) => x.id === r.personne_id);
+      if (p) { nom = p.nom; prenom = p.prenom; ville = p.adresse || ""; }
+    }
+    if (!nom && !prenom) prenom = r.nom_personnage || "";
+    return `
+      <tr id="prepaye-row-${r.id}">
+        <td><input type="text" class="prepaye-input" data-id="${r.id}" data-field="code_salarie" value="${esc(r.code_salarie)}" style="width:70px;"></td>
+        <td>${esc(nom)}</td>
+        <td>${esc(prenom)}</td>
+        <td>${esc(r.nom_personnage)}</td>
+        <td>${esc(ville)}</td>
+        <td><input type="number" class="prepaye-input" data-id="${r.id}" data-field="cachet_brut" value="${r.cachet_brut ?? ""}" style="width:70px;"></td>
+        <td><input type="time" class="prepaye-input" data-id="${r.id}" data-field="heure_debut" value="${r.heure_debut ? r.heure_debut.slice(0,5) : ""}"></td>
+        <td><input type="time" class="prepaye-input" data-id="${r.id}" data-field="heure_fin" value="${r.heure_fin ? r.heure_fin.slice(0,5) : ""}"></td>
+        <td><input type="number" step="0.01" class="prepaye-input" data-id="${r.id}" data-field="abattement" value="${r.abattement ?? ""}" style="width:60px;"></td>
+      </tr>
+    `;
+  }
+
+  let totalBrut = 0;
+  list.forEach((r) => { totalBrut += Number(r.cachet_brut) || 0; });
+
+  container.innerHTML = `
+    <table class="role-table">
+      <thead>
+        <tr>
+          <th>Code salarié</th><th>Nom</th><th>Prénom</th><th>Rôle</th><th>Ville de résidence</th>
+          <th>Cachet (€)</th><th>Heure début</th><th>Heure fin</th><th>Abattement</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.entries(groupes).map(([type, lignes]) => `
+          <tr><td colspan="9" style="background:var(--surface-2); font-weight:700; color:var(--accent);">${esc(roleLabels[type] || type)}</td></tr>
+          ${lignes.map(ligneHtml).join("")}
+        `).join("")}
+        <tr><td colspan="5" style="text-align:right; font-weight:700;">TOTAL TOUS POSTES</td><td style="font-weight:700;">${totalBrut.toFixed(2)} €</td><td colspan="3"></td></tr>
+      </tbody>
+    </table>
+  `;
+  status.textContent = `${list.length} personne(s) — ${jour ? jour.jour_tournage : ""}`;
+
+  document.querySelectorAll(".prepaye-input").forEach((input) => {
+    input.addEventListener("blur", async () => {
+      const champ = input.dataset.field;
+      const val = input.value === "" ? null : input.value;
+      await sb.from("depouillement_roles").update({ [champ]: val }).eq("id", input.dataset.id);
+      if (champ === "cachet_brut") renderPrepaye(jourId); // recalcule le total
+    });
+  });
+}
+
+document.getElementById("btn-prepaye-export").addEventListener("click", async () => {
+  const jourId = state.currentPrepayeJourId;
+  if (!jourId) { alert("Choisis d'abord un jour de tournage."); return; }
+  const jour = state.jours.find((j) => j.id === jourId);
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+  const roleLabels = Object.fromEntries(ROLE_TYPES.map((r) => [r.value, r.label]));
+
+  const lignesExport = [
+    [film ? film.nom : "", "", "", "", "", "", "", "", ""],
+    ["TABLEAU RECAPITULATIF DES INFORMATIONS ET PRESENCES DES ACTEURS DE COMPLEMENT", "", "", "", "", "", "", "", ""],
+    [jour ? jour.jour_tournage : "", jour ? jour.date_tournage : "", "", "", "", "", "", "", ""],
+    ["Code salarié", "Nom", "Prénom", "Rôle", "Ville de résidence", "Cachet", "Heure début", "Heure fin", "Abattement"],
+  ];
+
+  const groupes = {};
+  list.forEach((r) => {
+    const cle = r.type_role || "autre";
+    if (!groupes[cle]) groupes[cle] = [];
+    groupes[cle].push(r);
+  });
+
+  Object.entries(groupes).forEach(([type, lignes]) => {
+    lignesExport.push([roleLabels[type] || type, "", "", "", "", "", "", "", ""]);
+    lignes.forEach((r) => {
+      let nom = "", prenom = "", ville = "";
+      if (r.personne_id) {
+        const p = state.personnes.find((x) => x.id === r.personne_id);
+        if (p) { nom = p.nom; prenom = p.prenom; ville = p.adresse || ""; }
+      }
+      if (!nom && !prenom) prenom = r.nom_personnage || "";
+      lignesExport.push([
+        r.code_salarie || "", nom, prenom, r.nom_personnage || "", ville,
+        r.cachet_brut || "", r.heure_debut || "", r.heure_fin || "", r.abattement || "",
+      ]);
+    });
+  });
+
+  const totalBrut = list.reduce((acc, r) => acc + (Number(r.cachet_brut) || 0), 0);
+  lignesExport.push(["TOTAL TOUS POSTES", "", "", "", "", totalBrut, "", "", ""]);
+
+  const ws = XLSX.utils.aoa_to_sheet(lignesExport);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Pré-paye");
+  XLSX.writeFile(wb, `Pre-paye_${jour ? jour.jour_tournage : "jour"}.xlsx`);
+});
 
 async function renderPresenceJour(jourId) {
   const container = document.getElementById("presence-content");
