@@ -119,8 +119,11 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content }]
+        max_tokens: 4000,
+        messages: [
+          { role: 'user', content },
+          { role: 'assistant', content: '{' }
+        ]
       })
     });
 
@@ -132,8 +135,9 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
 
     const data = await response.json();
     const textBlock = (data.content || []).find((b) => b.type === 'text');
-    let raw = textBlock ? textBlock.text : '{}';
+    let raw = textBlock ? textBlock.text : '';
     raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    raw = '{' + raw; // remettre l'accolade retirée par le préremplissage ci-dessus
 
     let extracted;
     try {
