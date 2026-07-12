@@ -103,8 +103,11 @@ Si le document contient beaucoup de lignes, extrais-les toutes. Ne pas inventer 
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 3000,
-        messages: [{ role: 'user', content }],
+        max_tokens: 4000,
+        messages: [
+          { role: 'user', content },
+          { role: 'assistant', content: '[' }
+        ],
       }),
     });
 
@@ -116,8 +119,9 @@ Si le document contient beaucoup de lignes, extrais-les toutes. Ne pas inventer 
 
     const data = await response.json();
     const textBlock = (data.content || []).find((b) => b.type === 'text');
-    let raw = textBlock ? textBlock.text : '[]';
+    let raw = textBlock ? textBlock.text : '';
     raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    raw = '[' + raw; // remettre le crochet retiré par le préremplissage ci-dessus
 
     let extracted;
     try {
