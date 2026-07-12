@@ -24,6 +24,7 @@ let state = {
   currentHmcJourId: null,
   hmcRealtimeChannel: null,
   lastTrombiSummary: [],
+  lastTrombiRawList: [],
   films: [],
   currentFilmId: localStorage.getItem("castingFiguration_currentFilmId") || null,
   filmDocumentsCache: [],
@@ -1335,7 +1336,8 @@ async function generateTrombinoscopePortraits() {
 
   document.getElementById("trombi-count").textContent = `${list.length} personne(s) correspondent aux critères.`;
   const grid = document.getElementById("trombi-results");
-  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucun résultat pour ces critères.</div>`; state.lastTrombiSummary = []; return; }
+  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucun résultat pour ces critères.</div>`; state.lastTrombiSummary = []; state.lastTrombiRawList = []; return; }
+  state.lastTrombiRawList = list;
   state.lastTrombiSummary = list.map((p) => ({
     nom: `${p.prenom} ${p.nom}`,
     details: [
@@ -1382,7 +1384,11 @@ async function generateTrombinoscopeCategorie(categorie) {
 
   document.getElementById("trombi-count").textContent = `${list.length} photo(s) — planche "${PLANCHE_LABELS[categorie] || categorie}".`;
   const grid = document.getElementById("trombi-results");
-  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune photo dans cette catégorie pour l'instant. Ajoute des photos "${PLANCHE_LABELS[categorie] || categorie}" depuis la fiche d'une personne.</div>`; state.lastTrombiSummary = []; return; }
+  if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune photo dans cette catégorie pour l'instant. Ajoute des photos "${PLANCHE_LABELS[categorie] || categorie}" depuis la fiche d'une personne.</div>`; state.lastTrombiSummary = []; state.lastTrombiRawList = []; return; }
+  state.lastTrombiRawList = list.map((d) => ({
+    photo_url: d.fichier_url, prenom: d.personnes ? d.personnes.prenom : "", nom: d.personnes ? d.personnes.nom : "",
+    telephone: d.personnes ? d.personnes.telephone : "", libelle: d.libelle || "",
+  }));
   state.lastTrombiSummary = list.map((d) => ({
     nom: d.personnes ? `${d.personnes.prenom} ${d.personnes.nom}` : "—",
     details: d.libelle || "",
@@ -1399,7 +1405,77 @@ async function generateTrombinoscopeCategorie(categorie) {
 }
 
 document.getElementById("btn-trombi-filter").addEventListener("click", generateTrombinoscope);
-document.getElementById("btn-trombi-print").addEventListener("click", () => window.print());
+document.getElementById("btn-trombi-print-reduit").addEventListener("click", () => genererImpressionTrombinoscope("reduit"));
+document.getElementById("btn-trombi-print-complet").addEventListener("click", () => genererImpressionTrombinoscope("complet"));
+
+function genererImpressionTrombinoscope(mode) {
+  const liste = state.lastTrombiRawList || [];
+  if (!liste.length) { alert("Génère d'abord un trombinoscope."); return; }
+
+  const planche = document.getElementById("tf-planche").selectedOptions[0].textContent;
+  const estReduit = mode === "reduit";
+
+  const carteHtml = (p) => {
+    const photo = p.photo_url || "";
+    const lignesDetails = estReduit
+      ? ""
+      : `
+        ${p.telephone ? `<div class="ligne">Tél : ${esc(p.telephone)}</div>` : ""}
+        ${p.taille_cm ? `<div class="ligne">Taille : ${p.taille_cm} cm</div>` : ""}
+        ${p.age ? `<div class="ligne">Âge : ${p.age} ans</div>` : ""}
+        ${p.metier ? `<div class="ligne">Métier : ${esc(p.metier)}</div>` : ""}
+        ${p.permis_conduire ? `<div class="ligne">Permis : ${esc(p.types_permis || "oui")}</div>` : ""}
+        ${p.libelle ? `<div class="ligne">${esc(p.libelle)}</div>` : ""}
+      `;
+    return `
+      <div class="carte">
+        ${photo ? `<img src="${esc(photo)}">` : `<div class="pas-photo"></div>`}
+        <div class="nom">${esc(p.prenom)} ${esc(p.nom)}</div>
+        ${estReduit && p.telephone ? `<div class="ligne">${esc(p.telephone)}</div>` : lignesDetails}
+      </div>
+    `;
+  };
+
+  const win = window.open("", "_blank");
+  win.document.write(`
+    <html><head><title>Trombinoscope - ${esc(planche)}</title>
+    <style>
+      @page { margin: 10mm; }
+      body{ font-family: Arial, sans-serif; color:#111; }
+      h1{ font-size:14px; text-align:center; margin:0 0 10px; }
+      .grille{ display:grid; grid-template-columns:repeat(${estReduit ? 5 : 4}, 1fr); gap:${estReduit ? "6px" : "10px"}; }
+      .carte{ border:1px solid #999; border-radius:4px; padding:4px; text-align:center; break-inside:avoid; }
+      .carte img{ width:100%; aspect-ratio:3/4; object-fit:contain; background:#f2f2f2; border-radius:3px; }
+      .pas-photo{ width:100%; aspect-ratio:3/4; background:#f2f2f2; border-radius:3px; }
+      .nom{ font-weight:bold; font-size:${estReduit ? "10px" : "11px"}; margin-top:3px; }
+      .ligne{ font-size:9px; color:#333; }
+    </style>
+    </head><body>
+      <h1>Trombinoscope — ${esc(planche)} (${liste.length} personne${liste.length > 1 ? "s" : ""})</h1>
+      <div class="grille">
+        ${liste.map(carteHtml).join("")}
+      </div>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+
+  let dejaImprime = false;
+  const lancerImpression = () => { if (!dejaImprime) { dejaImprime = true; win.print(); } };
+  const attendreImagesEtImprimer = () => {
+    const imgs = Array.from(win.document.images || []);
+    if (!imgs.length) { lancerImpression(); return; }
+    let restantes = imgs.length;
+    const uneImageChargee = () => { restantes -= 1; if (restantes <= 0) lancerImpression(); };
+    imgs.forEach((img) => {
+      if (img.complete) uneImageChargee();
+      else { img.addEventListener("load", uneImageChargee); img.addEventListener("error", uneImageChargee); }
+    });
+    setTimeout(lancerImpression, 6000); // filet de sécurité
+  };
+  setTimeout(attendreImagesEtImprimer, 150);
+}
+
 document.getElementById("btn-trombi-email").addEventListener("click", () => {
   if (!state.lastTrombiSummary.length) { alert("Génère d'abord un trombinoscope."); return; }
   const planche = document.getElementById("tf-planche").selectedOptions[0].textContent;
