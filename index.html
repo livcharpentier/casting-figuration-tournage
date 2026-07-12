@@ -338,6 +338,7 @@
       <button class="subtab-btn" data-subtab="emargement">Émargement</button>
       <button class="subtab-btn" data-subtab="contrats">Contrats</button>
       <button class="subtab-btn" data-subtab="prepaye">Pré-paye</button>
+      <button class="subtab-btn" data-subtab="recap-admin">Récap Admin</button>
       <button class="subtab-btn" data-subtab="hmc">Préparation HMC</button>
     </div>
 
@@ -451,6 +452,17 @@
       </div>
       <div id="prepaye-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
       <div id="prepaye-content"></div>
+    </div>
+
+    <!-- SOUS-ONGLET : Récap Admin (infos contrat + salaire + RIB, pour la paye) -->
+    <div class="subtab-panel" id="subtab-recap-admin">
+      <div class="jour-select-bar">
+        <select id="recap-admin-jour-select"></select>
+        <button class="btn secondary" id="btn-recap-admin-export">Exporter en Excel</button>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Tableau à donner à l'administration pour établir les fiches de paye — infos administratives, salaire et RIB de chaque personne du jour.</div>
+      <div id="recap-admin-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
+      <div id="recap-admin-content" style="overflow-x:auto;"></div>
     </div>
 
     <!-- SOUS-ONGLET : Préparation HMC -->
