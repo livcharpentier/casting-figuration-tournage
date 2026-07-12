@@ -235,6 +235,7 @@ async function openFicheModal(id) {
             ${isCurrent
               ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">Photo trombi actuelle</div>`
               : `<button type="button" class="btn-icon" style="font-size:10px; width:100%; text-align:center; margin-top:2px;" onclick="setPhotoTrombi('${p.id}', '${esc(d.fichier_url).replace(/'/g, "\\'")}')">Utiliser pour le trombi</button>`}
+            <button type="button" class="btn-icon" style="font-size:10px; width:100%; text-align:center; margin-top:2px; color:var(--red);" onclick="supprimerPhotoGalerie('${p.id}', '${d.id}')">Supprimer</button>
           </div>
         `;
         }).join("")}
@@ -424,6 +425,18 @@ function printFiche(p, documents) {
     setTimeout(doPrint, 4000);
   };
   setTimeout(waitImagesAndPrint, 150);
+}
+
+async function supprimerPhotoGalerie(personneId, docId) {
+  if (!confirm("Supprimer définitivement cette photo ?")) return;
+  if (docId === "principale") {
+    // C'est la photo principale (personnes.photo_url), pas un document distinct
+    await sb.from("personnes").update({ photo_url: null }).eq("id", personneId);
+  } else {
+    await sb.from("documents_personne").delete().eq("id", docId);
+  }
+  await loadPersonnes();
+  await openFicheModal(personneId);
 }
 
 async function setPhotoTrombi(personneId, url) {
