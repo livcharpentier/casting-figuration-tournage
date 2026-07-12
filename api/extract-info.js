@@ -66,6 +66,9 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "lien_site_web": "",         // site personnel/portfolio (jamais Instagram, YouTube ni le site d'une agence ici)
   "agence": "",                // nom de l'agence ou de l'agent, si mentionné
   "lien_agent": "",            // lien vers le site/la page de l'agence ou de l'agent, si mentionné (distinct du site personnel du comédien)
+  "iban": "",                   // IBAN si un RIB est présent dans le document/image (format FR76 ...)
+  "bic": "",                    // BIC/SWIFT si présent
+  "titulaire_rib": "",          // nom du titulaire du compte tel qu'indiqué sur le RIB, si différent du nom de la personne
   "experience_parcours": "",   // liste des expériences pertinentes trouvées : pièces de théâtre, tournages/films/séries, formations/écoles de comédie, avec dates si mentionnées. Une ligne par expérience (séparées par \\n). Ne pas résumer, garder les intitulés précis (titre, rôle, année, structure).
   "notes": ""                  // toute info utile qui ne rentre pas ailleurs
 }`;
