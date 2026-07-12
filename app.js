@@ -2201,7 +2201,8 @@ document.getElementById("btn-contrats-tous").addEventListener("click", () => {
 
   const container = document.getElementById("contrat-status");
   container.innerHTML = `
-    <div style="margin-top:10px; margin-bottom:6px; color:var(--text);">${state.contratsPretsAImprimer.length} contrat(s) prêt(s) — imprime-les un par un :</div>
+    <div style="margin-top:10px; margin-bottom:6px; color:var(--text);">${state.contratsPretsAImprimer.length} contrat(s) prêt(s) :</div>
+    <button type="button" class="btn" id="btn-imprimer-tous-contrats" style="margin-bottom:10px;">Imprimer tous les contrats du jour (un par un)</button>
     <div class="doc-list">
       ${state.contratsPretsAImprimer.map((c, i) => `
         <div class="doc-item">
@@ -2211,6 +2212,9 @@ document.getElementById("btn-contrats-tous").addEventListener("click", () => {
       `).join("")}
     </div>
   `;
+  document.getElementById("btn-imprimer-tous-contrats").addEventListener("click", () => {
+    state.contratsPretsAImprimer.forEach((c, i) => imprimerContratIndex(i));
+  });
 });
 
 function imprimerContratIndex(i) {
