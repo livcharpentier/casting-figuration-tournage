@@ -71,6 +71,23 @@ function fileToBase64(file) {
   });
 }
 
+// Détecte le vrai format d'une image à partir de ses premiers octets (signature),
+// car un fichier mal nommé (ex: .jpg qui est en réalité un PNG) trompe file.type.
+async function detecterTypeImageReel(file) {
+  try {
+    const buffer = await file.slice(0, 12).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (hex.startsWith("89504e47")) return "image/png";
+    if (hex.startsWith("ffd8ff")) return "image/jpeg";
+    if (hex.startsWith("47494638")) return "image/gif";
+    if (hex.startsWith("52494646")) return "image/webp";
+    return file.type || "image/jpeg";
+  } catch (e) {
+    return file.type || "image/jpeg";
+  }
+}
+
 // ==========================================================
 // TAB NAVIGATION
 // ==========================================================
@@ -845,7 +862,7 @@ async function analyserFichiers(files) {
     for (const file of files) {
       nomsFichiers.push(file.name);
       if (file.type.startsWith("image/")) {
-        images.push({ data: await fileToBase64(file), mediaType: file.type });
+        images.push({ data: await fileToBase64(file), mediaType: await detecterTypeImageReel(file) });
         if (!mainPhotoFile) mainPhotoFile = file; // la 1ère image sert de photo principale
         else state.pendingDocsAfterSave.push({ file, type_document: "photo", categorie_photo: "autre" });
       } else if (file.type === "application/pdf") {
