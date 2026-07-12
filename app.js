@@ -33,6 +33,7 @@ let state = {
   contratRolesJour: [],
   contratsPretsAImprimer: [],
   currentPrepayeJourId: null,
+  currentRecapAdminJourId: null,
 };
 
 // ==========================================================
@@ -549,6 +550,11 @@ function personneFormFields(p = {}) {
       <div class="field"><label>Centre de Sécurité Sociale</label><input type="text" id="f-centre-secu" value="${esc(p.centre_secu_sociale)}"></div>
       <div class="field"><label>Personne à prévenir (nom + tél)</label><input type="text" id="f-personne-prevenir" value="${esc(p.personne_a_prevenir)}"></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>IBAN</label><input type="text" id="f-iban" value="${esc(p.iban)}" placeholder="FR76 ..."></div>
+      <div class="field"><label>BIC</label><input type="text" id="f-bic" value="${esc(p.bic)}"></div>
+      <div class="field"><label>Titulaire du compte (si différent)</label><input type="text" id="f-titulaire-rib" value="${esc(p.titulaire_rib)}"></div>
+    </div>
   </fieldset>
 
   <fieldset>
@@ -938,6 +944,7 @@ async function savePersonne() {
     lieu_naissance: val("f-lieu-naissance"), nationalite: val("f-nationalite"), num_secu_sociale: val("f-num-secu"),
     situation_familiale: val("f-situation-familiale"), nb_enfants_charge: val("f-nb-enfants"), nom_jeune_fille: val("f-nom-jeune-fille"),
     centre_secu_sociale: val("f-centre-secu"), personne_a_prevenir: val("f-personne-prevenir"),
+    iban: val("f-iban"), bic: val("f-bic"), titulaire_rib: val("f-titulaire-rib"),
     photo_annee: num("f-photo-annee"), notes: val("f-notes"),
     updated_at: new Date().toISOString(),
   };
@@ -1245,6 +1252,7 @@ async function initFilmSelectors() {
   await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
   await loadJoursDropdown("contrat-jour-select", onContratJourChange);
   await loadJoursDropdown("prepaye-jour-select", onPrepayeJourChange);
+  await loadJoursDropdown("recap-admin-jour-select", onRecapAdminJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 
@@ -1258,6 +1266,7 @@ async function onFilmChange(newFilmId) {
   await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
   await loadJoursDropdown("contrat-jour-select", onContratJourChange);
   await loadJoursDropdown("prepaye-jour-select", onPrepayeJourChange);
+  await loadJoursDropdown("recap-admin-jour-select", onRecapAdminJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
   await loadFilmDocuments(newFilmId);
 }
@@ -2361,6 +2370,78 @@ document.getElementById("btn-prepaye-export").addEventListener("click", async ()
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pré-paye");
   XLSX.writeFile(wb, `Pre-paye_${jour ? jour.jour_tournage : "jour"}.xlsx`);
+});
+
+// ==========================================================
+// RÉCAP ADMIN (infos contrat + salaire + RIB, pour la paye)
+// ==========================================================
+const COLONNES_RECAP_ADMIN = [
+  "Nom", "Prénom", "Nom de jeune fille", "Date de naissance", "Lieu de naissance", "Nationalité",
+  "Adresse fiscale", "Téléphone", "Email", "N° Sécurité Sociale", "Situation familiale", "Nb enfants à charge",
+  "Centre Sécurité Sociale", "Personne à prévenir", "Rôle", "Cachet brut (€)", "IBAN", "BIC", "Titulaire du compte",
+];
+
+async function getLignesRecapAdmin(jourId) {
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+  return list.map((r) => {
+    const p = r.personne_id ? state.personnes.find((x) => x.id === r.personne_id) : null;
+    return {
+      role: r,
+      personne: p,
+      ligne: [
+        p ? p.nom : "", p ? p.prenom : (r.nom_personnage || ""), p ? p.nom_jeune_fille : "",
+        p ? p.date_naissance : "", p ? p.lieu_naissance : "", p ? p.nationalite : "",
+        p ? p.adresse : "", p ? p.telephone : "", p ? p.email : "",
+        p ? p.num_secu_sociale : "", p ? p.situation_familiale : "", p ? p.nb_enfants_charge : "",
+        p ? p.centre_secu_sociale : "", p ? p.personne_a_prevenir : "",
+        r.nom_personnage || "", r.cachet_brut || "",
+        p ? p.iban : "", p ? p.bic : "", p ? p.titulaire_rib : "",
+      ],
+    };
+  });
+}
+
+async function onRecapAdminJourChange(jourId) {
+  state.currentRecapAdminJourId = jourId || null;
+  const container = document.getElementById("recap-admin-content");
+  const status = document.getElementById("recap-admin-status");
+  if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis un jour de tournage.</div>`; status.textContent = ""; return; }
+  await renderRecapAdmin(jourId);
+}
+
+async function renderRecapAdmin(jourId) {
+  const container = document.getElementById("recap-admin-content");
+  const status = document.getElementById("recap-admin-status");
+  const jour = state.jours.find((j) => j.id === jourId);
+  const lignes = await getLignesRecapAdmin(jourId);
+  if (!lignes.length) { container.innerHTML = `<div class="empty-state">Aucune personne castée pour ce jour.</div>`; status.textContent = ""; return; }
+
+  const manquantes = lignes.filter((l) => !l.personne || !l.personne.iban).length;
+  status.textContent = `${lignes.length} personne(s) — ${jour ? jour.jour_tournage : ""}. ${manquantes ? manquantes + " sans IBAN renseigné (à compléter dans leur fiche)." : "Tous les RIB sont renseignés."}`;
+
+  container.innerHTML = `
+    <table class="role-table">
+      <thead><tr>${COLONNES_RECAP_ADMIN.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${lignes.map((l) => `<tr>${l.ligne.map((v, i) => `<td style="${i === 16 && !v ? "color:var(--red);" : ""}">${esc(v) || (i === 16 ? "manquant" : "")}</td>`).join("")}</tr>`).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+document.getElementById("btn-recap-admin-export").addEventListener("click", async () => {
+  const jourId = state.currentRecapAdminJourId;
+  if (!jourId) { alert("Choisis d'abord un jour de tournage."); return; }
+  const jour = state.jours.find((j) => j.id === jourId);
+  const lignes = await getLignesRecapAdmin(jourId);
+  if (!lignes.length) { alert("Aucune personne pour ce jour."); return; }
+
+  const aoa = [COLONNES_RECAP_ADMIN, ...lignes.map((l) => l.ligne)];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Récap Admin");
+  XLSX.writeFile(wb, `Recap_Admin_Paye_${jour ? jour.jour_tournage : "jour"}.xlsx`);
 });
 
 async function renderPresenceJour(jourId) {
