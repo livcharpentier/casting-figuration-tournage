@@ -435,9 +435,21 @@ document.getElementById("btn-new-personne").addEventListener("click", () => open
 function personneFormFields(p = {}) {
   return `
   <div class="ai-extract-zone" id="ai-extract-zone">
-    <p><strong>Extraction automatique</strong> — dépose en une fois la photo, le CV et/ou la démo reçus par mail (plusieurs fichiers possibles), ou colle le texte du mail, pour pré-remplir le formulaire et ranger chaque fichier au bon endroit.</p>
-    <input type="file" id="ai-file-input" accept="image/*,.pdf,video/*" multiple style="margin-top:6px;">
-    <div id="ai-file-list" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+    <p><strong>Extraction automatique</strong> — dépose les photos et le CV séparément (chacun analysé indépendamment, plus rapide et plus fiable), ou colle le texte du mail.</p>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:8px;">
+      <div id="ai-photo-dropzone" style="flex:1; min-width:220px; border:1px dashed var(--border); border-radius:8px; padding:8px;">
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Photo(s)</div>
+        <input type="file" id="ai-photo-input" accept="image/*" multiple>
+        <div id="ai-photo-list" style="font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
+        <button type="button" class="btn secondary" id="btn-analyser-photo" style="margin-top:6px;">Analyser la/les photo(s)</button>
+      </div>
+      <div id="ai-cv-dropzone" style="flex:1; min-width:220px; border:1px dashed var(--border); border-radius:8px; padding:8px;">
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">CV</div>
+        <input type="file" id="ai-cv-input" accept="application/pdf" multiple>
+        <div id="ai-cv-list" style="font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
+        <button type="button" class="btn secondary" id="btn-analyser-cv" style="margin-top:6px;">Analyser le CV</button>
+      </div>
+    </div>
     <div id="cv-preview-container" style="display:none; margin-top:10px;">
       <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Aperçu du CV — clique-glisse sur la photo pour la sélectionner, puis clique "Utiliser cette zone comme photo" :</div>
       <div id="cv-preview-wrapper" style="position:relative; display:inline-block; border:1px solid var(--border); border-radius:8px; overflow:hidden; cursor:crosshair; max-width:100%;">
@@ -449,11 +461,8 @@ function personneFormFields(p = {}) {
         <span id="cv-crop-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
       </div>
     </div>
-    <textarea id="ai-text-input" placeholder="Ou colle ici le texte du mail à analyser..."></textarea>
-    <div style="margin-top:8px;">
-      <button type="button" class="btn secondary" id="btn-ai-extract">Analyser et pré-remplir</button>
-      <span id="ai-extract-status" style="font-size:12px; color:var(--text-muted); margin-left:8px;"></span>
-    </div>
+    <textarea id="ai-text-input" placeholder="Ou colle ici le texte du mail à analyser (pris en compte avec chaque analyse)..." style="margin-top:10px;"></textarea>
+    <div id="ai-extract-status" style="font-size:12px; color:var(--text-muted); margin-top:8px;"></div>
     <div id="ai-extract-results" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:10px 12px; font-size:13px;"></div>
   </div>
 
@@ -625,18 +634,31 @@ async function openPersonneModal(id) {
     document.getElementById("btn-delete-personne").addEventListener("click", () => deletePersonne(id));
     loadDocuments(id);
   }
-  document.getElementById("btn-ai-extract").addEventListener("click", runAiExtraction);
+  document.getElementById("btn-analyser-photo").addEventListener("click", () => {
+    const files = Array.from(document.getElementById("ai-photo-input").files || []);
+    analyserFichiers(files);
+  });
+  document.getElementById("btn-analyser-cv").addEventListener("click", () => {
+    const files = Array.from(document.getElementById("ai-cv-input").files || []);
+    analyserFichiers(files);
+  });
 
-  // Glisser-déposer sur la zone d'extraction IA et sur le champ photo principal
-  enableDragDrop(document.getElementById("ai-extract-zone"), document.getElementById("ai-file-input"), { append: true });
-  document.getElementById("ai-file-input").addEventListener("change", (e) => {
+  // Glisser-déposer sur les deux zones distinctes (photo / CV) et sur le champ photo principal
+  enableDragDrop(document.getElementById("ai-photo-dropzone"), document.getElementById("ai-photo-input"), { append: true });
+  document.getElementById("ai-photo-input").addEventListener("change", (e) => {
     const files = Array.from(e.target.files || []);
-    const names = files.map((f) => f.name);
-    document.getElementById("ai-file-list").textContent = names.length ? "Fichiers sélectionnés : " + names.join(", ") : "";
+    document.getElementById("ai-photo-list").textContent = files.length ? files.map((f) => f.name).join(", ") : "";
+  });
+
+  enableDragDrop(document.getElementById("ai-cv-dropzone"), document.getElementById("ai-cv-input"), { append: true });
+  document.getElementById("ai-cv-input").addEventListener("change", (e) => {
+    const files = Array.from(e.target.files || []);
+    document.getElementById("ai-cv-list").textContent = files.length ? files.map((f) => f.name).join(", ") : "";
     const pdfFile = files.find((f) => f.type === "application/pdf");
     if (pdfFile) previewPdfFirstPage(pdfFile);
     else document.getElementById("cv-preview-container").style.display = "none";
   });
+
   const photoField = document.getElementById("f-photo").closest(".field");
   photoField.style.border = "1px dashed var(--border)";
   photoField.style.borderRadius = "8px";
@@ -779,18 +801,17 @@ function enableDragDrop(zoneEl, fileInputEl, options = {}) {
   });
 }
 
-async function runAiExtraction() {
-  const fileInput = document.getElementById("ai-file-input");
+async function analyserFichiers(files) {
   const textInput = document.getElementById("ai-text-input");
   const status = document.getElementById("ai-extract-status");
-  const files = Array.from(fileInput.files || []);
   const texte = textInput.value.trim();
 
   if (!files.length && !texte) { status.textContent = "Ajoute au moins un fichier ou du texte."; return; }
 
   status.innerHTML = `<span class="spinner"></span> Analyse en cours...`;
   document.getElementById("ai-extract-results").style.display = "none";
-  state.pendingDocsAfterSave = [];
+  // Retirer les éventuels doublons (même fichier déjà mis de côté lors d'une analyse précédente)
+  state.pendingDocsAfterSave = state.pendingDocsAfterSave.filter((doc) => !files.some((f) => f.name === doc.file.name && f.size === doc.file.size));
   try {
     const images = []; // {data, mediaType}
     const pdfs = []; // {data}
