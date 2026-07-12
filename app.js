@@ -31,6 +31,7 @@ let state = {
   currentEmargementJourId: null,
   currentContratJourId: null,
   contratRolesJour: [],
+  contratsPretsAImprimer: [],
 };
 
 // ==========================================================
@@ -2193,16 +2194,30 @@ document.getElementById("btn-contrats-tous").addEventListener("click", () => {
   const rolesAvecPersonne = (state.contratRolesJour || []).filter((r) => r.personne_id);
   if (!rolesAvecPersonne.length) { alert("Aucune personne du jour n'est reliée à une fiche complète. Assigne des personnes de la base dans le Dépouillement."); return; }
 
-  let corpsTotal = "";
-  rolesAvecPersonne.forEach((role, index) => {
+  state.contratsPretsAImprimer = rolesAvecPersonne.map((role) => {
     const p = state.personnes.find((x) => x.id === role.personne_id);
-    if (!p) return;
-    const corps = genererContratBodyHtml(p, film, dateAffichee, lieuTournage, montantBrut, villeSignature);
-    corpsTotal += index > 0 ? `<div class="contrat-suivant">${corps}</div>` : corps;
-  });
+    return p ? { p, corps: genererContratBodyHtml(p, film, dateAffichee, lieuTournage, montantBrut, villeSignature) } : null;
+  }).filter(Boolean);
 
-  ouvrirImpressionContrats(`Contrats - ${jour.jour_tournage}`, corpsTotal);
+  const container = document.getElementById("contrat-status");
+  container.innerHTML = `
+    <div style="margin-top:10px; margin-bottom:6px; color:var(--text);">${state.contratsPretsAImprimer.length} contrat(s) prêt(s) — imprime-les un par un :</div>
+    <div class="doc-list">
+      ${state.contratsPretsAImprimer.map((c, i) => `
+        <div class="doc-item">
+          <span style="flex:1;">${esc(c.p.prenom)} ${esc(c.p.nom)}</span>
+          <button type="button" class="btn secondary" onclick="imprimerContratIndex(${i})">Imprimer</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
 });
+
+function imprimerContratIndex(i) {
+  const c = (state.contratsPretsAImprimer || [])[i];
+  if (!c) return;
+  ouvrirImpressionContrats(`Lettre d'engagement - ${c.p.prenom} ${c.p.nom}`, c.corps);
+}
 
 async function renderPresenceJour(jourId) {
   const container = document.getElementById("presence-content");
