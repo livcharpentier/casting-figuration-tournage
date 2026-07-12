@@ -2048,9 +2048,9 @@ document.getElementById("btn-emargement-print").addEventListener("click", async 
 async function onContratJourChange(jourId) {
   state.currentContratJourId = jourId || null;
   const select = document.getElementById("contrat-personne-select");
-  document.getElementById("contrat-details-panel").style.display = "none";
+  const panel = document.getElementById("contrat-details-panel");
   document.getElementById("contrat-status").textContent = "";
-  if (!jourId) { select.innerHTML = `<option value="">— Choisir une personne du jour —</option>`; return; }
+  if (!jourId) { select.innerHTML = `<option value="">— Choisir une personne du jour —</option>`; panel.style.display = "none"; return; }
 
   const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
   state.contratRolesJour = roles || [];
@@ -2063,55 +2063,18 @@ async function onContratJourChange(jourId) {
       }
       return `<option value="${r.id}">${esc(label)}</option>`;
     }).join("");
+  panel.style.display = "block";
+  const nbAvecPersonne = state.contratRolesJour.filter((r) => r.personne_id).length;
+  document.getElementById("contrat-status").textContent = `${nbAvecPersonne} personne(s) du jour reliée(s) à une fiche complète, sur ${state.contratRolesJour.length} rôle(s) au total.`;
 }
 document.getElementById("contrat-jour-select").addEventListener("change", (e) => onContratJourChange(e.target.value));
-
-document.getElementById("contrat-personne-select").addEventListener("change", (e) => {
-  const roleId = e.target.value;
-  const panel = document.getElementById("contrat-details-panel");
-  if (!roleId) { panel.style.display = "none"; return; }
-  panel.style.display = "block";
-  const jour = state.jours.find((j) => j.id === state.currentContratJourId);
-  document.getElementById("c-ville-signature").value = document.getElementById("c-ville-signature").value || "";
-  document.getElementById("c-lieu-tournage").value = document.getElementById("c-lieu-tournage").value || "";
-});
 
 function joursSemaineMoisFr(dateStr) {
   return formaterDateFr(dateStr);
 }
 
-document.getElementById("btn-contrat-print").addEventListener("click", () => {
-  const roleId = document.getElementById("contrat-personne-select").value;
-  if (!roleId) { alert("Choisis une personne."); return; }
-  const role = (state.contratRolesJour || []).find((r) => r.id === roleId);
-  if (!role || !role.personne_id) { alert("Cette ligne n'est pas reliée à une fiche personne complète (nécessaire pour générer le contrat). Assigne une personne de la base dans le Dépouillement."); return; }
-  const p = state.personnes.find((x) => x.id === role.personne_id);
-  if (!p) { alert("Personne introuvable."); return; }
-  const film = state.films.find((f) => f.id === state.currentFilmId);
-  const jour = state.jours.find((j) => j.id === state.currentContratJourId);
-
-  const lieuTournage = document.getElementById("c-lieu-tournage").value;
-  const montantBrut = document.getElementById("c-montant-brut").value;
-  const villeSignature = document.getElementById("c-ville-signature").value || lieuTournage;
-  const dateAffichee = joursSemaineMoisFr(jour ? jour.date_tournage : "");
-
-  const win = window.open("", "_blank");
-  win.document.write(`
-    <html><head><title>Lettre d'engagement - ${esc(p.prenom)} ${esc(p.nom)}</title>
-    <style>
-      @page { margin: 15mm; }
-      body{ font-family: Arial, sans-serif; font-size:10.5px; color:#111; line-height:1.35; }
-      h1{ font-size:12px; text-align:center; margin:2px 0; }
-      .entete{ font-size:9px; text-align:center; margin-bottom:8px; }
-      .titre-contrat{ text-align:center; font-weight:bold; font-size:11px; margin:10px 0; }
-      table.infos{ width:100%; border-collapse:collapse; margin-bottom:8px; }
-      table.infos td{ padding:2px 4px; vertical-align:top; }
-      .label{ font-weight:bold; }
-      .page-break{ page-break-before: always; }
-      p{ text-align:justify; margin:6px 0; }
-      .signature-zone{ margin-top:20px; }
-    </style>
-    </head><body>
+function genererContratBodyHtml(p, film, dateAffichee, lieuTournage, montantBrut, villeSignature) {
+  return `
       <h1>${esc(film?.nom_production || "")}</h1>
       <div class="entete">
         FILM : "${esc(film?.nom || "")}" de ${esc(film?.realisateur || "")}${film?.numero_objet ? " (N° objet : " + esc(film.numero_objet) + ")" : ""}<br>
@@ -2170,11 +2133,75 @@ document.getElementById("btn-contrat-print").addEventListener("click", () => {
       <p><strong>Art. 9 :</strong> Le Salarié autorise la Société à fixer, reproduire, représenter, éditer sa prestation, et ce sur tous supports et par tous modes d'exploitation connus ou inconnus à ce jour, en toutes versions, langues, intégralement ou en extraits. Le salaire versé couvre la cession de ses droits sur sa prestation pour toutes les utilisations exposées, sans réserve.</p>
       <p><strong>Art. 12 :</strong> Traitement des données personnelles du Salarié (Règlement Général sur le traitement des données personnelles n°2016/679). Les données personnelles du Salarié sont conservées pour une durée de 5 ans après la date de rupture du présent contrat. Le Salarié bénéficie d'un droit d'accès, de rectification, d'effacement, à la limitation du traitement et à la portabilité de ses données.</p>
       <p><strong>Art. 13 :</strong> Le présent contrat est soumis à la loi française. Toutes contestations relatives à l'exécution et l'interprétation du présent contrat devront être portées devant les tribunaux compétents.</p>
-    </body></html>
+  `;
+}
+
+function ouvrirImpressionContrats(titre, corpsHtml) {
+  const win = window.open("", "_blank");
+  win.document.write(`
+    <html><head><title>${esc(titre)}</title>
+    <style>
+      @page { margin: 15mm; }
+      body{ font-family: Arial, sans-serif; font-size:10.5px; color:#111; line-height:1.35; }
+      h1{ font-size:12px; text-align:center; margin:2px 0; }
+      .entete{ font-size:9px; text-align:center; margin-bottom:8px; }
+      .titre-contrat{ text-align:center; font-weight:bold; font-size:11px; margin:10px 0; }
+      table.infos{ width:100%; border-collapse:collapse; margin-bottom:8px; }
+      table.infos td{ padding:2px 4px; vertical-align:top; }
+      .label{ font-weight:bold; }
+      .page-break{ page-break-before: always; }
+      .contrat-suivant{ page-break-before: always; }
+      p{ text-align:justify; margin:6px 0; }
+      .signature-zone{ margin-top:20px; }
+    </style>
+    </head><body>${corpsHtml}</body></html>
   `);
   win.document.close();
   win.focus();
   setTimeout(() => win.print(), 300);
+}
+
+document.getElementById("btn-contrat-print").addEventListener("click", () => {
+  const roleId = document.getElementById("contrat-personne-select").value;
+  if (!roleId) { alert("Choisis une personne."); return; }
+  const role = (state.contratRolesJour || []).find((r) => r.id === roleId);
+  if (!role || !role.personne_id) { alert("Cette ligne n'est pas reliée à une fiche personne complète (nécessaire pour générer le contrat). Assigne une personne de la base dans le Dépouillement."); return; }
+  const p = state.personnes.find((x) => x.id === role.personne_id);
+  if (!p) { alert("Personne introuvable."); return; }
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  const jour = state.jours.find((j) => j.id === state.currentContratJourId);
+
+  const lieuTournage = document.getElementById("c-lieu-tournage").value;
+  const montantBrut = document.getElementById("c-montant-brut").value;
+  const villeSignature = document.getElementById("c-ville-signature").value || lieuTournage;
+  const dateAffichee = joursSemaineMoisFr(jour ? jour.date_tournage : "");
+
+  const corps = genererContratBodyHtml(p, film, dateAffichee, lieuTournage, montantBrut, villeSignature);
+  ouvrirImpressionContrats(`Lettre d'engagement - ${p.prenom} ${p.nom}`, corps);
+});
+
+document.getElementById("btn-contrats-tous").addEventListener("click", () => {
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  const jour = state.jours.find((j) => j.id === state.currentContratJourId);
+  if (!jour) { alert("Choisis d'abord un jour de tournage."); return; }
+
+  const lieuTournage = document.getElementById("c-lieu-tournage").value;
+  const montantBrut = document.getElementById("c-montant-brut").value;
+  const villeSignature = document.getElementById("c-ville-signature").value || lieuTournage;
+  const dateAffichee = joursSemaineMoisFr(jour.date_tournage);
+
+  const rolesAvecPersonne = (state.contratRolesJour || []).filter((r) => r.personne_id);
+  if (!rolesAvecPersonne.length) { alert("Aucune personne du jour n'est reliée à une fiche complète. Assigne des personnes de la base dans le Dépouillement."); return; }
+
+  let corpsTotal = "";
+  rolesAvecPersonne.forEach((role, index) => {
+    const p = state.personnes.find((x) => x.id === role.personne_id);
+    if (!p) return;
+    const corps = genererContratBodyHtml(p, film, dateAffichee, lieuTournage, montantBrut, villeSignature);
+    corpsTotal += index > 0 ? `<div class="contrat-suivant">${corps}</div>` : corps;
+  });
+
+  ouvrirImpressionContrats(`Contrats - ${jour.jour_tournage}`, corpsTotal);
 });
 
 async function renderPresenceJour(jourId) {
