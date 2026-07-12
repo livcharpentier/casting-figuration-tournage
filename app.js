@@ -18,6 +18,7 @@ let state = {
   personnes: [],
   currentEditingPersonneId: null,
   pendingPhotoFile: null,
+  modalModifie: false,
   pendingDocsAfterSave: [],
   jours: [],
   currentDepouillementJourId: null,
@@ -48,12 +49,23 @@ function openModal(html) {
   const overlay = document.getElementById("modal-overlay");
   overlay.innerHTML = `<div class="modal">${html}</div>`;
   overlay.classList.add("active");
-  overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
+  state.modalModifie = false;
+  // Marque le formulaire comme "modifié" dès qu'on tape/change quelque chose à l'intérieur
+  overlay.oninput = () => { state.modalModifie = true; };
+  overlay.onchange = () => { state.modalModifie = true; };
+  overlay.onclick = (e) => { if (e.target === overlay) closeModalAvecConfirmation(); };
 }
 function closeModal() {
   document.getElementById("modal-overlay").classList.remove("active");
   document.getElementById("modal-overlay").innerHTML = "";
   state.pendingPhotoFile = null;
+  state.modalModifie = false;
+}
+function closeModalAvecConfirmation() {
+  if (state.modalModifie) {
+    if (!confirm("Des informations ont été saisies mais pas encore enregistrées. Si tu fermes maintenant, elles seront perdues.\n\nFermer quand même sans enregistrer ?")) return;
+  }
+  closeModal();
 }
 async function uploadToStorage(file, prefix) {
   const ext = file.name.split(".").pop();
@@ -727,7 +739,7 @@ async function openPersonneModal(id) {
   if (id) p = state.personnes.find((x) => x.id === id) || {};
 
   openModal(`
-    <span class="close-x" onclick="closeModal()">×</span>
+    <span class="close-x" onclick="closeModalAvecConfirmation()">×</span>
     <h2>${id ? "Modifier" : "Ajouter"} une personne</h2>
     ${personneFormFields(p)}
     <fieldset id="documents-fieldset" style="${id ? "" : "display:none;"}">
@@ -770,7 +782,7 @@ async function openPersonneModal(id) {
     <div style="display:flex; gap:10px; justify-content:space-between; margin-top:16px;">
       <div>${id ? `<button type="button" class="btn danger" id="btn-delete-personne">Supprimer</button>` : ""}</div>
       <div style="display:flex; gap:10px;">
-        <button type="button" class="btn secondary" id="btn-cancel-close" onclick="closeModal()">Annuler</button>
+        <button type="button" class="btn secondary" id="btn-cancel-close" onclick="closeModalAvecConfirmation()">Annuler</button>
         <button type="button" class="btn" id="btn-save-personne">Enregistrer</button>
       </div>
     </div>
@@ -1208,6 +1220,7 @@ async function savePersonne() {
       document.getElementById("documents-fieldset").style.display = "";
       await loadDocuments(personneId);
       document.getElementById("btn-cancel-close").textContent = "Fermer";
+      state.modalModifie = false;
       saveBtn.disabled = false;
       saveBtn.textContent = "Enregistrer les modifications";
       const statusEl = document.getElementById("ai-extract-status");
@@ -1578,7 +1591,7 @@ async function openInfosFilmModal() {
   const film = state.films.find((f) => f.id === state.currentFilmId);
   if (!film) return;
   openModal(`
-    <span class="close-x" onclick="closeModal()">✕</span>
+    <span class="close-x" onclick="closeModalAvecConfirmation()">✕</span>
     <h2>Infos du film — ${esc(film.nom)}</h2>
     <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Ces informations servent notamment à générer la feuille d'émargement.</div>
     <div class="field-row">
@@ -1608,7 +1621,7 @@ async function openInfosFilmModal() {
       </div>
     </fieldset>
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
-      <button class="btn secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn secondary" onclick="closeModalAvecConfirmation()">Annuler</button>
       <button class="btn" id="btn-save-infos-film">Enregistrer</button>
     </div>
   `);
@@ -3013,7 +3026,7 @@ function personneNom(id) {
 async function openRoleModal(typeRole) {
   if (!state.personnes.length) await loadPersonnes();
   openModal(`
-    <span class="close-x" onclick="closeModal()">×</span>
+    <span class="close-x" onclick="closeModalAvecConfirmation()">×</span>
     <h2>Ajouter — ${ROLE_TYPES.find((r) => r.value === typeRole).label}</h2>
     <div class="field-row">
       <div class="field"><label>Nom du personnage</label><input type="text" id="r-nom-personnage" placeholder="ex Passant n°3"></div>
@@ -3042,7 +3055,7 @@ async function openRoleModal(typeRole) {
       </div>
     </fieldset>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
-      <button class="btn secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn secondary" onclick="closeModalAvecConfirmation()">Annuler</button>
       <button class="btn" id="btn-save-role">Enregistrer</button>
     </div>
   `);
