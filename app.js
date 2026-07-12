@@ -123,10 +123,12 @@ async function loadPersonnes() {
 function renderPersonnesGrid() {
   const search = document.getElementById("search-personnes").value.trim().toLowerCase();
   const typeFilter = document.getElementById("filter-type-personne").value;
+  const genreFilter = document.getElementById("filter-genre-personne").value;
   const grid = document.getElementById("personnes-grid");
   let list = state.personnes;
   if (search) list = list.filter((p) => `${p.nom} ${p.prenom}`.toLowerCase().includes(search));
   if (typeFilter) list = list.filter((p) => p.type_personne === typeFilter);
+  if (genreFilter) list = list.filter((p) => p.genre === genreFilter);
 
   if (!list.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune personne trouvée.</div>`;
@@ -447,6 +449,7 @@ async function quickDeletePersonne(id) {
 }
 document.getElementById("search-personnes").addEventListener("input", renderPersonnesGrid);
 document.getElementById("filter-type-personne").addEventListener("change", renderPersonnesGrid);
+document.getElementById("filter-genre-personne").addEventListener("change", renderPersonnesGrid);
 document.getElementById("btn-new-personne").addEventListener("click", () => openPersonneModal(null));
 
 function personneFormFields(p = {}) {
@@ -493,6 +496,14 @@ function personneFormFields(p = {}) {
           <option value="figurant" ${p.type_personne === "figurant" ? "selected" : ""}>Figurant</option>
           <option value="comedien" ${p.type_personne === "comedien" ? "selected" : ""}>Comédien (ne fait pas de figuration)</option>
           <option value="comedien_figurant" ${p.type_personne === "comedien_figurant" ? "selected" : ""}>Comédien + figurant</option>
+        </select>
+      </div>
+      <div class="field"><label>Genre</label>
+        <select id="f-genre">
+          <option value="" ${!p.genre ? "selected" : ""}>—</option>
+          <option value="Homme" ${p.genre === "Homme" ? "selected" : ""}>Homme</option>
+          <option value="Femme" ${p.genre === "Femme" ? "selected" : ""}>Femme</option>
+          <option value="Enfant" ${p.genre === "Enfant" ? "selected" : ""}>Enfant</option>
         </select>
       </div>
     </div>
@@ -898,6 +909,7 @@ async function analyserFichiers(files) {
     setVal("f-taille", d.taille_cm); setVal("f-poids", d.poids_kg); setVal("f-pointure", d.pointure);
     setVal("f-tour-taille", d.tour_taille); setVal("f-tour-poitrine", d.tour_poitrine);
     setVal("f-yeux", d.couleur_yeux); setVal("f-cheveux", d.couleur_cheveux); setVal("f-morphologie", d.morphologie);
+    setVal("f-genre", d.genre);
     setVal("f-tel", d.telephone); setVal("f-email", d.email); setVal("f-adresse", d.adresse);
     if (d.permis_conduire) document.getElementById("f-permis").checked = true;
     setVal("f-types-permis", d.types_permis); setVal("f-langues", d.langues);
@@ -999,7 +1011,7 @@ async function savePersonne() {
   const num = (id) => { const v = val(id); return v === "" ? null : Number(v); };
 
   const record = {
-    prenom: val("f-prenom"), nom: val("f-nom"), type_personne: val("f-type"),
+    prenom: val("f-prenom"), nom: val("f-nom"), type_personne: val("f-type"), genre: val("f-genre") || null,
     date_naissance: val("f-date-naissance") || null, age: num("f-age"),
     taille_cm: num("f-taille"), poids_kg: num("f-poids"), pointure: num("f-pointure"),
     tour_taille: num("f-tour-taille"), tour_poitrine: num("f-tour-poitrine"),
@@ -1157,6 +1169,7 @@ async function generateTrombinoscope() {
 async function generateTrombinoscopePortraits() {
   let query = sb.from("personnes").select("*");
   const type = document.getElementById("tf-type").value;
+  const genre = document.getElementById("tf-genre").value;
   const nom = document.getElementById("tf-nom").value.trim().toLowerCase();
   const tailleMin = document.getElementById("tf-taille-min").value;
   const tailleMax = document.getElementById("tf-taille-max").value;
@@ -1169,6 +1182,7 @@ async function generateTrombinoscopePortraits() {
   const rechercheLibre = document.getElementById("tf-recherche-libre").value.trim().toLowerCase();
 
   if (type) query = query.eq("type_personne", type);
+  if (genre) query = query.eq("genre", genre);
   if (tailleMin) query = query.gte("taille_cm", Number(tailleMin));
   if (tailleMax) query = query.lte("taille_cm", Number(tailleMax));
   if (ageMin) query = query.gte("age", Number(ageMin));
@@ -1276,6 +1290,7 @@ document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-planche").value = "portraits";
   document.getElementById("tf-type-wrapper").style.display = "flex";
   document.getElementById("tf-type").value = "";
+  document.getElementById("tf-genre").value = "";
   document.getElementById("tf-nom").value = "";
   document.getElementById("tf-taille-min").value = "";
   document.getElementById("tf-taille-max").value = "";
