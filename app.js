@@ -822,7 +822,13 @@ async function runAiExtraction() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
+    let json;
+    try {
+      json = await res.json();
+    } catch (e) {
+      status.textContent = `Le serveur a mis trop de temps à répondre (trop de fichiers analysés d'un coup, code ${res.status}). Réessaie avec moins de fichiers à la fois (ex: juste la photo, puis juste le CV séparément).`;
+      return;
+    }
     if (json.error) { status.textContent = "Erreur : " + json.error; return; }
     const d = json.extracted || {};
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== null && val !== undefined && val !== "") el.value = val; };
