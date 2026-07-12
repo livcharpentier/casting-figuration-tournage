@@ -659,6 +659,29 @@ async function openPersonneModal(id) {
     else document.getElementById("cv-preview-container").style.display = "none";
   });
 
+  // Filet de sécurité : si le fichier est déposé n'importe où dans la zone globale
+  // (pas précisément sur une des deux petites boîtes), on le route automatiquement selon son type.
+  const zoneGlobale = document.getElementById("ai-extract-zone");
+  ["dragenter", "dragover"].forEach((evt) => zoneGlobale.addEventListener(evt, (e) => { e.preventDefault(); zoneGlobale.classList.add("dragover"); }));
+  ["dragleave", "drop"].forEach((evt) => zoneGlobale.addEventListener(evt, (e) => { e.preventDefault(); zoneGlobale.classList.remove("dragover"); }));
+  zoneGlobale.addEventListener("drop", (e) => {
+    if (!e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    const photoInput = document.getElementById("ai-photo-input");
+    const cvInput = document.getElementById("ai-cv-input");
+    const dtPhoto = new DataTransfer();
+    Array.from(photoInput.files || []).forEach((f) => dtPhoto.items.add(f));
+    const dtCv = new DataTransfer();
+    Array.from(cvInput.files || []).forEach((f) => dtCv.items.add(f));
+    Array.from(e.dataTransfer.files).forEach((f) => {
+      if (f.type.startsWith("image/")) dtPhoto.items.add(f);
+      else dtCv.items.add(f);
+    });
+    photoInput.files = dtPhoto.files;
+    cvInput.files = dtCv.files;
+    photoInput.dispatchEvent(new Event("change"));
+    cvInput.dispatchEvent(new Event("change"));
+  });
+
   const photoField = document.getElementById("f-photo").closest(".field");
   photoField.style.border = "1px dashed var(--border)";
   photoField.style.borderRadius = "8px";
