@@ -3,6 +3,8 @@
 // (capture d'écran, CV, mail collé) et renvoie les champs de fiche
 // comédien/figurant pré-remplis, extraits par Claude (vision).
 //
+
+export const config = { maxDuration: 60 };
 // Nécessite la variable d'environnement ANTHROPIC_API_KEY sur Vercel
 // (Project Settings -> Environment Variables).
 
@@ -116,8 +118,8 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
         messages: [{ role: 'user', content }]
       })
     });
