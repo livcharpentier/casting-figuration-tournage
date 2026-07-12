@@ -81,8 +81,22 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Si le document contient beaucoup de lignes, extrais-les toutes. Ne pas inventer de lignes absentes du document.`;
+    } else if (type === 'genre_personnes') {
+      contextText = `Voici une liste de personnes (numéro, prénom, nom, âge éventuel) dont il faut deviner le genre.`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balises markdown), où chaque élément correspond à une ligne de la liste, avec exactement ces clés :
+[
+  {
+    "numero": "",   // le numéro exact tel qu'indiqué devant chaque ligne de la liste fournie
+    "genre": ""     // une seule valeur EXACTE parmi : "Homme", "Femme", "Enfant"
+                     // Règle : si un âge est indiqué et qu'il est inférieur à 18 ans, mets "Enfant".
+                     // Sinon, déduis "Homme" ou "Femme" à partir du prénom (prénoms français/internationaux courants).
+                     // Si le prénom est ambigu ou inconnu et qu'aucun âge n'est fourni, laisse "genre": "" (ne devine pas au hasard).
+  }
+]
+Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter.`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement' ou 'liste_figurants'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants' ou 'genre_personnes'." });
       return;
     }
 
