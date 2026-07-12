@@ -28,6 +28,7 @@ let state = {
   currentFilmId: localStorage.getItem("castingFiguration_currentFilmId") || null,
   filmDocumentsCache: [],
   currentPresenceJourId: null,
+  currentEmargementJourId: null,
 };
 
 // ==========================================================
@@ -1216,6 +1217,7 @@ async function initFilmSelectors() {
   document.getElementById("film-select-depouillement").onchange = (e) => onFilmChange(e.target.value);
   await loadJoursDropdown("liste-jour-select", onListeJourChange);
   await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
+  await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
 }
 
@@ -1226,6 +1228,7 @@ async function onFilmChange(newFilmId) {
   await loadJoursDropdown("depouillement-jour-select", onDepouillementJourChange);
   await loadJoursDropdown("liste-jour-select", onListeJourChange);
   await loadJoursDropdown("presence-jour-select", onPresenceJourChange);
+  await loadJoursDropdown("emargement-jour-select", onEmargementJourChange);
   await loadJoursDropdown("hmc-jour-select", onHmcJourChange);
   await loadFilmDocuments(newFilmId);
 }
@@ -1241,6 +1244,47 @@ async function createNouveauFilm() {
   await onFilmChange(data.id);
 }
 document.getElementById("btn-new-film-depouillement").addEventListener("click", createNouveauFilm);
+document.getElementById("btn-infos-film").addEventListener("click", openInfosFilmModal);
+
+async function openInfosFilmModal() {
+  if (!state.currentFilmId) { alert("Choisis d'abord un film."); return; }
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  if (!film) return;
+  openModal(`
+    <span class="close-x" onclick="closeModal()">✕</span>
+    <h2>Infos du film — ${esc(film.nom)}</h2>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Ces informations servent notamment à générer la feuille d'émargement.</div>
+    <div class="field-row">
+      <div class="field"><label>Nom de la production</label><input type="text" id="f-nom-production" value="${esc(film.nom_production)}"></div>
+      <div class="field"><label>Réalisateur</label><input type="text" id="f-realisateur" value="${esc(film.realisateur)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Adresse de la production</label><input type="text" id="f-adresse-production" value="${esc(film.adresse_production)}"></div>
+      <div class="field"><label>Téléphone de la production</label><input type="text" id="f-telephone-production" value="${esc(film.telephone_production)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Directeur / Directrice de production</label><input type="text" id="f-directeur-production" value="${esc(film.directeur_production)}"></div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+      <button class="btn secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn" id="btn-save-infos-film">Enregistrer</button>
+    </div>
+  `);
+  document.getElementById("btn-save-infos-film").addEventListener("click", async () => {
+    const maj = {
+      nom_production: document.getElementById("f-nom-production").value,
+      realisateur: document.getElementById("f-realisateur").value,
+      adresse_production: document.getElementById("f-adresse-production").value,
+      telephone_production: document.getElementById("f-telephone-production").value,
+      directeur_production: document.getElementById("f-directeur-production").value,
+    };
+    const { error } = await sb.from("films").update(maj).eq("id", state.currentFilmId);
+    if (error) { alert("Erreur : " + error.message); return; }
+    await loadFilms();
+    closeModal();
+  });
+}
+
 
 // ==========================================================
 // DOCUMENTS DU FILM (bible, PDT, scénario)
@@ -1824,6 +1868,133 @@ async function onPresenceJourChange(jourId) {
   if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis un jour de tournage.</div>`; document.getElementById("presence-count").textContent = ""; return; }
   await renderPresenceJour(jourId);
 }
+
+// ==========================================================
+// ÉMARGEMENT (bordereau d'émargement, même modèle pour tous les films)
+// ==========================================================
+const JOURS_SEMAINE_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const MOIS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
+function formaterDateFr(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  return `${JOURS_SEMAINE_FR[d.getDay()]} ${d.getDate()} ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+async function onEmargementJourChange(jourId) {
+  state.currentEmargementJourId = jourId || null;
+  const container = document.getElementById("emargement-content");
+  const status = document.getElementById("emargement-status");
+  if (!jourId) { container.innerHTML = `<div class="empty-state">Choisis un jour de tournage.</div>`; status.textContent = ""; return; }
+  await renderEmargement(jourId);
+}
+
+async function renderEmargement(jourId) {
+  const container = document.getElementById("emargement-content");
+  const status = document.getElementById("emargement-status");
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  if (!film || !film.nom_production || !film.realisateur) {
+    status.innerHTML = `Pense à renseigner les <strong>infos du film</strong> (nom de production, réalisateur...) via le bouton en haut, pour que la feuille soit complète.`;
+  } else {
+    status.textContent = "";
+  }
+
+  const jour = state.jours.find((j) => j.id === jourId);
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+
+  const lignes = list.map((r) => {
+    let nom = "", prenom = "", tel = "";
+    if (r.personne_id) {
+      const p = state.personnes.find((x) => x.id === r.personne_id);
+      if (p) { nom = p.nom; prenom = p.prenom; tel = p.telephone || ""; }
+    }
+    if (!nom && !prenom) prenom = r.nom_personnage || "";
+    return { nom, prenom, tel };
+  });
+
+  container.innerHTML = `
+    <table class="role-table">
+      <thead><tr><th>N.</th><th>Nom</th><th>Prénom</th><th>Téléphone</th></tr></thead>
+      <tbody>
+        ${lignes.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td><td>${esc(l.tel)}</td></tr>`).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+document.getElementById("btn-emargement-print").addEventListener("click", async () => {
+  const jourId = state.currentEmargementJourId;
+  if (!jourId) { alert("Choisis d'abord un jour de tournage."); return; }
+  const film = state.films.find((f) => f.id === state.currentFilmId);
+  const jour = state.jours.find((j) => j.id === jourId);
+  const { data: roles } = await sb.from("depouillement_roles").select("*").eq("jour_id", jourId).order("created_at");
+  const list = roles || [];
+  const lignes = list.map((r) => {
+    let nom = "", prenom = "", tel = "";
+    if (r.personne_id) {
+      const p = state.personnes.find((x) => x.id === r.personne_id);
+      if (p) { nom = p.nom; prenom = p.prenom; tel = p.telephone || ""; }
+    }
+    if (!nom && !prenom) prenom = r.nom_personnage || "";
+    return { nom, prenom, tel };
+  });
+
+  const dateAffichee = formaterDateFr(jour ? jour.date_tournage : "");
+
+  const win = window.open("", "_blank");
+  win.document.write(`
+    <html><head><title>Bordereau d'émargement</title>
+    <style>
+      @page { size: landscape; margin: 12mm; }
+      body{ font-family: Arial, sans-serif; font-size:11px; color:#111; }
+      .entete{ text-align:center; margin-bottom:10px; }
+      .entete .production{ font-weight:bold; font-size:14px; }
+      .entete .titre{ font-weight:bold; font-size:16px; margin:4px 0; }
+      .entete .ligne{ font-size:11px; }
+      .bordereau-titre{ text-align:center; font-weight:bold; font-size:13px; margin:12px 0; }
+      table{ width:100%; border-collapse:collapse; }
+      th, td{ border:1px solid #333; padding:4px 6px; text-align:center; }
+      th{ background:#eee; font-size:10px; }
+      td.nom, td.prenom{ text-align:left; }
+    </style>
+    </head><body>
+      <div class="entete">
+        <div class="production">${esc(film?.nom_production || "")}</div>
+        <div class="titre">${esc(film?.nom || "")}</div>
+        <div class="ligne">Réalisé par</div>
+        <div class="ligne"><strong>${esc(film?.realisateur || "")}</strong></div>
+        <div class="ligne">${esc(film?.adresse_production || "")}${film?.telephone_production ? " — tél : " + esc(film.telephone_production) : ""}</div>
+        <div class="ligne">Directeur de production</div>
+        <div class="ligne"><strong>${esc(film?.directeur_production || "")}</strong></div>
+      </div>
+      <div class="bordereau-titre">Bordereau d'émargement du ${esc(dateAffichee)}${jour ? " (" + esc(jour.jour_tournage) + ")" : ""}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>N.</th><th>NOM</th><th>PRENOM</th><th>TELEPHONE</th>
+            <th>HEURE<br>D'ARRIVÉE</th><th>SIGNATURE</th><th>HEURE DE PAUSE</th><th>HEURE DE<br>FIN DE PAUSE</th><th>HEURE DE<br>DEPART</th><th>SIGNATURE</th><th>CACHET<br>BRUT</th><th>INDEMNITES</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lignes.map((l, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td class="nom">${esc(l.nom)}</td>
+              <td class="prenom">${esc(l.prenom)}</td>
+              <td>${esc(l.tel)}</td>
+              <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+});
 
 async function renderPresenceJour(jourId) {
   const container = document.getElementById("presence-content");
