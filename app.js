@@ -838,6 +838,7 @@ async function runAiExtraction() {
     setVal("f-metier", d.metier);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
     setVal("f-instagram", d.lien_instagram); setVal("f-lien-agent", d.lien_agent);
+    setVal("f-iban", d.iban); setVal("f-bic", d.bic); setVal("f-titulaire-rib", d.titulaire_rib);
     setVal("f-experience", d.experience_parcours);
     setVal("f-notes", d.notes);
     // Reprendre automatiquement la 1ère photo comme photo principale
@@ -863,6 +864,7 @@ async function runAiExtraction() {
     if (d.lien_showreel) champsTrouves.push(`<strong>YouTube / démo :</strong> ${esc(d.lien_showreel)}`);
     if (d.lien_site_web) champsTrouves.push(`<strong>Site personnel :</strong> ${esc(d.lien_site_web)}`);
     if (d.lien_agent || d.agence) champsTrouves.push(`<strong>Agence/agent :</strong> ${esc(d.agence || "")} ${esc(d.lien_agent || "")}`);
+    if (d.iban) champsTrouves.push(`<strong>RIB détecté :</strong> IBAN ${esc(d.iban)}${d.bic ? " — BIC " + esc(d.bic) : ""}${d.titulaire_rib ? " — Titulaire : " + esc(d.titulaire_rib) : ""}`);
     if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
     if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
