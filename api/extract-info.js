@@ -55,6 +55,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "couleur_yeux": "",
   "couleur_cheveux": "",
   "morphologie": "",
+  "genre": "",                 // une valeur EXACTE parmi : "Homme", "Femme", "Enfant" (déduis-la si possible depuis le prénom/photo/contexte, sinon laisse vide)
   "telephone": "",
   "email": "",
   "adresse": "",
