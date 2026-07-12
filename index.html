@@ -234,6 +234,12 @@
         <option value="figurant">Figurant</option>
         <option value="comedien_figurant">Comédien + figurant</option>
       </select>
+      <select id="filter-genre-personne">
+        <option value="">Tous genres</option>
+        <option value="Homme">Homme</option>
+        <option value="Femme">Femme</option>
+        <option value="Enfant">Enfant</option>
+      </select>
       <button class="btn" id="btn-new-personne">+ Ajouter une personne</button>
     </div>
     <div id="personnes-grid" class="grid-cards"></div>
@@ -261,6 +267,15 @@
             <option value="comedien">Comédien</option>
             <option value="figurant">Figurant</option>
             <option value="comedien_figurant">Comédien + figurant</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Genre</label>
+          <select id="tf-genre">
+            <option value="">Tous</option>
+            <option value="Homme">Homme</option>
+            <option value="Femme">Femme</option>
+            <option value="Enfant">Enfant</option>
           </select>
         </div>
         <div class="field">
