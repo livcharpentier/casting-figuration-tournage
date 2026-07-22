@@ -735,6 +735,7 @@ function personneFormFields(p = {}) {
 async function openPersonneModal(id) {
   state.currentEditingPersonneId = id;
   state.pendingDocsAfterSave = [];
+  state.pendingLiensAfterSave = [];
   let p = {};
   if (id) p = state.personnes.find((x) => x.id === id) || {};
 
@@ -742,7 +743,7 @@ async function openPersonneModal(id) {
     <span class="close-x" onclick="closeModalAvecConfirmation()">×</span>
     <h2>${id ? "Modifier" : "Ajouter"} une personne</h2>
     ${personneFormFields(p)}
-    <fieldset id="documents-fieldset" style="${id ? "" : "display:none;"}">
+    <fieldset id="documents-fieldset">
       <legend>Documents (CV, démo, autres)</legend>
       <div id="doc-list-container" class="doc-list"></div>
       <div class="field-row" style="margin-top:10px;">
@@ -1192,7 +1193,7 @@ async function savePersonne() {
       personneId = data.id;
     }
 
-    // Ajout des fichiers en attente (CV, démo, photos supplémentaires détectés lors de l'extraction IA)
+    // Ajout des fichiers en attente (CV, démo, photos supplémentaires détectés lors de l'extraction IA ou ajoutés manuellement avant le 1er enregistrement)
     if (state.pendingDocsAfterSave.length) {
       saveBtn.textContent = `Ajout de ${state.pendingDocsAfterSave.length} document(s)...`;
       for (const doc of state.pendingDocsAfterSave) {
@@ -1201,15 +1202,36 @@ async function savePersonne() {
           await sb.from("documents_personne").insert({
             personne_id: personneId,
             type_document: doc.type_document,
-            categorie_photo: doc.categorie_photo,
-            libelle: doc.file.name,
+            categorie_photo: doc.categorie_photo || null,
+            annee_photo: doc.annee_photo || null,
+            libelle: doc.libelle || doc.file.name,
             fichier_url,
+            lien_externe: doc.lien_externe || null,
           });
         } catch (docErr) {
           console.error("Erreur ajout document", doc.file.name, docErr);
         }
       }
       state.pendingDocsAfterSave = [];
+    }
+
+    // Liens (démo YouTube, etc.) ajoutés avant le 1er enregistrement, sans fichier associé
+    if (state.pendingLiensAfterSave && state.pendingLiensAfterSave.length) {
+      for (const doc of state.pendingLiensAfterSave) {
+        try {
+          await sb.from("documents_personne").insert({
+            personne_id: personneId,
+            type_document: doc.type_document,
+            categorie_photo: doc.categorie_photo || null,
+            annee_photo: doc.annee_photo || null,
+            libelle: doc.libelle || null,
+            lien_externe: doc.lien_externe || null,
+          });
+        } catch (docErr) {
+          console.error("Erreur ajout lien", docErr);
+        }
+      }
+      state.pendingLiensAfterSave = [];
     }
 
     await loadPersonnes();
@@ -1270,13 +1292,33 @@ async function deleteDocument(docId, personneId) {
 document.addEventListener("click", async (e) => {
   if (e.target && e.target.id === "btn-add-doc") {
     const personneId = state.currentEditingPersonneId;
-    if (!personneId) { alert("Enregistre d'abord la fiche avant d'ajouter un document."); return; }
     const type_document = document.getElementById("doc-type").value;
     const libelle = document.getElementById("doc-libelle").value;
     const file = document.getElementById("doc-file").files[0];
     const lien = document.getElementById("doc-lien").value.trim();
     const categorie_photo = type_document === "photo" ? document.getElementById("doc-categorie").value : null;
     const annee_photo = type_document === "photo" ? (document.getElementById("doc-annee").value || null) : null;
+
+    if (!file && !lien) { alert("Choisis un fichier ou renseigne un lien."); return; }
+
+    if (!personneId) {
+      // La fiche n'est pas encore enregistrée : on met ce document de côté,
+      // il sera ajouté automatiquement en même temps que la fiche au prochain clic sur "Enregistrer".
+      if (file) {
+        state.pendingDocsAfterSave.push({ file, type_document, categorie_photo, annee_photo, libelle, lien_externe: lien || null });
+      } else {
+        state.pendingLiensAfterSave = state.pendingLiensAfterSave || [];
+        state.pendingLiensAfterSave.push({ type_document, categorie_photo, annee_photo, libelle, lien_externe: lien });
+      }
+      document.getElementById("doc-libelle").value = "";
+      document.getElementById("doc-annee").value = "";
+      document.getElementById("doc-lien").value = "";
+      document.getElementById("doc-file").value = "";
+      const statusEl = document.getElementById("ai-extract-status");
+      if (statusEl) statusEl.textContent = "Document mis en attente — il sera ajouté automatiquement à l'enregistrement de la fiche.";
+      return;
+    }
+
     try {
       let fichier_url = null;
       if (file) fichier_url = await uploadToStorage(file, type_document === "photo" ? "photos" : "documents");
