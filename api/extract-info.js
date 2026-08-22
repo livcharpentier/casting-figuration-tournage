@@ -81,7 +81,12 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
     if (nomsFichiers.length) {
       content.push({
         type: 'text',
-        text: `Les fichiers envoyés ont ces noms, qui contiennent parfois des informations utiles selon une convention du type "NOM_PRENOM_TAILLE_TYPE_TELEPHONE_EMAIL_ANNEE" (ordre/séparateurs variables) :\n${nomsFichiers.map((n) => `- "${n}"`).join("\n")}\n\nAnalyse ces noms et extrais-en tout ce qui est exploitable.`
+        text: `Les fichiers envoyés ont ces noms, qui contiennent souvent des informations utiles selon une convention du type "NOM_PRENOM__TYPE__COMPETENCES__TELEPHONE__EMAIL__ANNEE" (les séparateurs entre blocs d'information sont souvent un double underscore "__", mais peuvent varier). Attention aux points particuliers suivants :
+- Le téléphone est souvent écrit avec des underscores à la place des espaces entre les chiffres (ex "06_67_76_22_17" = "06 67 76 22 17").
+- L'email est souvent écrit avec des underscores à la place du "@" et du premier point avant l'extension (ex "helene_rossignol_hotmail_fr" = "helene.rossignol@hotmail.fr"). Reconstitue-le sous forme d'email valide.
+- Des mots comme "theatre", "agent", "site", "comedien(ne)", "figurant(e)" indiquent souvent une caractéristique ou compétence de la personne (ex : "theatre" → pratique le théâtre, à mentionner dans compétences ou expérience ; "agent" → a un agent, à mentionner en notes même si le nom de l'agent n'est pas donné ; "site" → a un site personnel, à mentionner en notes même si l'URL n'est pas donnée). Ne pas mettre "agent" ou "site" tels quels dans les champs de lien s'il n'y a pas de véritable URL.
+- L'année en fin de nom correspond généralement à l'année de la photo.
+Noms de fichiers à analyser :\n${nomsFichiers.map((n) => `- "${n}"`).join("\n")}\n\nAnalyse ces noms et extrais-en tout ce qui est exploitable, en reconstituant proprement le téléphone et l'email.`
       });
     }
     if (texte) {
