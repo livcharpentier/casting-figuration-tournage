@@ -56,7 +56,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "couleur_cheveux": "",
   "morphologie": "",
   "genre": "",                 // une valeur EXACTE parmi : "Homme", "Femme", "Enfant" (déduis-la si possible depuis le prénom/photo/contexte, sinon laisse vide)
-  "photo_annee": null,          // année de la photo elle-même (nombre, ex 2022), si elle est indiquée dans le nom du fichier (souvent en toute fin de nom) ou mentionnée dans le texte. Ne pas confondre avec la date de naissance.
+  "photo_annee": null,          // IMPORTANT, à remplir en priorité : dès qu'un nombre à 4 chiffres ressemblant à une année (19xx ou 20xx) apparaît N'IMPORTE OÙ dans le nom du fichier (pas seulement en toute fin) ou dans le texte fourni, mets-le ICI sous forme de nombre (ex 2022), et PAS SEULEMENT dans "notes". Ne pas confondre avec une date de naissance (qui a un format jour/mois/année).
   "telephone": "",
   "email": "",
   "adresse": "",
@@ -86,7 +86,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
 - Le téléphone est souvent écrit avec des underscores à la place des espaces entre les chiffres (ex "06_67_76_22_17" = "06 67 76 22 17").
 - L'email est souvent écrit avec des underscores à la place du "@" et du premier point avant l'extension (ex "helene_rossignol_hotmail_fr" = "helene.rossignol@hotmail.fr"). Reconstitue-le sous forme d'email valide.
 - Des mots comme "theatre", "agent", "site", "comedien(ne)", "figurant(e)" indiquent souvent une caractéristique ou compétence de la personne (ex : "theatre" → pratique le théâtre, à mentionner dans compétences ou expérience ; "agent" → a un agent, à mentionner en notes même si le nom de l'agent n'est pas donné ; "site" → a un site personnel, à mentionner en notes même si l'URL n'est pas donnée). Ne pas mettre "agent" ou "site" tels quels dans les champs de lien s'il n'y a pas de véritable URL.
-- L'année en fin de nom correspond généralement à l'année de la photo.
+- L'année en fin de nom correspond généralement à l'année de la photo : remplis-la impérativement dans le champ "photo_annee" du JSON (pas seulement dans les notes).
 Noms de fichiers à analyser :\n${nomsFichiers.map((n) => `- "${n}"`).join("\n")}\n\nAnalyse ces noms et extrais-en tout ce qui est exploitable, en reconstituant proprement le téléphone et l'email.`
       });
     }
