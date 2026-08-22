@@ -82,10 +82,12 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
     if (nomsFichiers.length) {
       content.push({
         type: 'text',
-        text: `Les fichiers envoyés ont ces noms, qui contiennent souvent des informations utiles selon une convention du type "NOM_PRENOM__TYPE__COMPETENCES__TELEPHONE__EMAIL__ANNEE" (les séparateurs entre blocs d'information sont souvent un double underscore "__", mais peuvent varier). Attention aux points particuliers suivants :
+        text: `Les fichiers envoyés ont ces noms, qui suivent souvent cet ordre (séparateurs "__" ou "_", variables) : NOM_PRENOM__AGE_ANS__TAILLE__VILLE__TYPE__DEMO__TELEPHONE__EMAIL__ANNEE. Attention aux points particuliers suivants :
+- La ville qui suit la taille (ex "1_80M_EVRY") correspond généralement au LIEU DE NAISSANCE de la personne (champ "lieu_naissance"), pas son adresse actuelle.
 - Le téléphone est souvent écrit avec des underscores à la place des espaces entre les chiffres (ex "06_67_76_22_17" = "06 67 76 22 17").
 - L'email est souvent écrit avec des underscores à la place du "@" et du premier point avant l'extension (ex "helene_rossignol_hotmail_fr" = "helene.rossignol@hotmail.fr"). Reconstitue-le sous forme d'email valide.
-- Des mots comme "theatre", "agent", "site", "comedien(ne)", "figurant(e)" indiquent souvent une caractéristique ou compétence de la personne (ex : "theatre" → pratique le théâtre, à mentionner dans compétences ou expérience ; "agent" → a un agent, à mentionner en notes même si le nom de l'agent n'est pas donné ; "site" → a un site personnel, à mentionner en notes même si l'URL n'est pas donnée). Ne pas mettre "agent" ou "site" tels quels dans les champs de lien s'il n'y a pas de véritable URL.
+- Des mots comme "theatre", "agent", "site", "demo", "comedien(ne)", "figurant(e)" indiquent une caractéristique de la personne : "theatre" → pratique le théâtre (compétences/expérience) ; "agent" → a un agent (à noter même sans nom précis) ; "site" → a un site personnel (à noter même sans URL précise) ; "demo"/"de mo" → a une bande démo (à noter dans les notes, même sans lien précis). Ne pas mettre "agent"/"site" tels quels dans les champs de lien s'il n'y a pas de véritable URL.
+- Un motif "26_ANS" ou "26 ans" indique l'âge de la personne AU MOMENT de la photo (pas forcément son âge actuel) : mets-le dans "age", et signale-le clairement dans "notes" en précisant qu'il s'agit de l'âge à la photo.
 - L'année en fin de nom correspond généralement à l'année de la photo : remplis-la impérativement dans le champ "photo_annee" du JSON (pas seulement dans les notes).
 Noms de fichiers à analyser :\n${nomsFichiers.map((n) => `- "${n}"`).join("\n")}\n\nAnalyse ces noms et extrais-en tout ce qui est exploitable, en reconstituant proprement le téléphone et l'email.`
       });
