@@ -46,7 +46,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "nom": "",
   "prenom": "",
   "date_naissance": "",       // format AAAA-MM-JJ si trouvable, sinon ""
-  "age": null,                 // nombre ou null
+  "age": null,                 // nombre ou null. Dans un nom de fichier, un motif comme "NE64", "Né_64", "NE 01" (juste après le nom/prénom) indique l'année de naissance en 2 chiffres (SANS le siècle) : "64" = né en 1964, "01" = né en 2001 (règle : si le nombre à 2 chiffres est proche de l'année actuelle en cours moins 2000, c'est 20XX, sinon c'est 19XX). Calcule l'âge actuel à partir de cette année de naissance déduite et mets-le ici. Ne confonds pas avec l'année de la photo (photo_annee, généralement en toute fin de nom).
   "taille_cm": null,           // nombre ou null
   "poids_kg": null,
   "pointure": null,
