@@ -1004,6 +1004,22 @@ function detecterAnneeDansNoms(nomsFichiers) {
 
 // Repère un motif "Né 64" / "NE64" / "Née_01" dans le nom de fichier (année de naissance en 2 chiffres,
 // juste après le nom/prénom) et calcule l'âge actuel correspondant, sans passer par l'IA.
+// Repère un motif "26_ANS" / "26 ans" (âge de la personne AU MOMENT de la photo) dans le nom du fichier.
+// Combiné à l'année de la photo si elle est aussi détectée, permet d'estimer l'âge actuel réel
+// (important : une photo ancienne indique un âge qui a pu beaucoup changer depuis).
+function detecterAgeALaPhotoDansNoms(nomsFichiers) {
+  if (!nomsFichiers || !nomsFichiers.length) return null;
+  for (const nom of nomsFichiers) {
+    const m = nom.match(/(\d{1,2})[_\s]?ans?\b/i);
+    if (m) {
+      const ageALaPhoto = Number(m[1]);
+      const anneePhoto = detecterAnneeDansNoms([nom]);
+      return { ageALaPhoto, anneePhoto };
+    }
+  }
+  return null;
+}
+
 function detecterNaissanceDansNoms(nomsFichiers) {
   if (!nomsFichiers || !nomsFichiers.length) return null;
   for (const nom of nomsFichiers) {
@@ -1074,11 +1090,28 @@ async function analyserFichiers(files) {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== null && val !== undefined && val !== "") el.value = val; };
     setVal("f-prenom", d.prenom); setVal("f-nom", d.nom);
     const naissanceDetectee = detecterNaissanceDansNoms(nomsFichiers);
-    setVal("f-date-naissance", d.date_naissance); setVal("f-age", d.age || (naissanceDetectee ? naissanceDetectee.age : null));
+    const ageAPhotoDetecte = detecterAgeALaPhotoDansNoms(nomsFichiers);
+    let ageEstimeDepuisNomFichier = naissanceDetectee ? naissanceDetectee.age : null;
+    if (ageAPhotoDetecte) {
+      const anneeActuelle = new Date().getFullYear();
+      ageEstimeDepuisNomFichier = ageAPhotoDetecte.anneePhoto
+        ? ageAPhotoDetecte.ageALaPhoto + (anneeActuelle - ageAPhotoDetecte.anneePhoto)
+        : ageAPhotoDetecte.ageALaPhoto;
+    }
+    setVal("f-date-naissance", d.date_naissance); setVal("f-age", d.age || ageEstimeDepuisNomFichier);
     if (naissanceDetectee) {
       const notesField = document.getElementById("f-notes");
       const mention = `Né(e) en ${naissanceDetectee.anneeNaissance}`;
       if (notesField && !notesField.value.includes(mention)) {
+        notesField.value = notesField.value ? `${notesField.value}\n${mention}` : mention;
+      }
+    }
+    if (ageAPhotoDetecte) {
+      const notesField = document.getElementById("f-notes");
+      const mention = ageAPhotoDetecte.anneePhoto
+        ? `Photo prise à ${ageAPhotoDetecte.ageALaPhoto} ans (en ${ageAPhotoDetecte.anneePhoto}) — âge actuel estimé : ${ageEstimeDepuisNomFichier} ans`
+        : `Photo prise à ${ageAPhotoDetecte.ageALaPhoto} ans (année de la photo inconnue — vérifier si la photo est récente)`;
+      if (notesField && !notesField.value.includes("Photo prise à")) {
         notesField.value = notesField.value ? `${notesField.value}\n${mention}` : mention;
       }
     }
@@ -1123,6 +1156,7 @@ async function analyserFichiers(files) {
     if (d.iban) champsTrouves.push(`<strong>RIB détecté :</strong> IBAN ${esc(d.iban)}${d.bic ? " — BIC " + esc(d.bic) : ""}${d.titulaire_rib ? " — Titulaire : " + esc(d.titulaire_rib) : ""}`);
     if (d.photo_annee) champsTrouves.push(`<strong>Année de la photo :</strong> ${esc(d.photo_annee)}`);
     if (naissanceDetectee) champsTrouves.push(`<strong>Naissance détectée dans le nom du fichier :</strong> Né(e) en ${naissanceDetectee.anneeNaissance} (âge ${naissanceDetectee.age} ans)`);
+    if (ageAPhotoDetecte) champsTrouves.push(`<strong>Âge à la photo détecté :</strong> ${ageAPhotoDetecte.ageALaPhoto} ans${ageAPhotoDetecte.anneePhoto ? " en " + ageAPhotoDetecte.anneePhoto + " — âge actuel estimé : " + ageEstimeDepuisNomFichier + " ans" : ""}`);
     if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
     if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
