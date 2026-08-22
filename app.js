@@ -1050,6 +1050,7 @@ async function analyserFichiers(files) {
     setVal("f-tour-taille", d.tour_taille); setVal("f-tour-poitrine", d.tour_poitrine);
     setVal("f-yeux", d.couleur_yeux); setVal("f-cheveux", d.couleur_cheveux); setVal("f-morphologie", d.morphologie);
     setVal("f-genre", d.genre);
+    setVal("f-photo-annee", d.photo_annee);
     setVal("f-tel", d.telephone); setVal("f-email", d.email); setVal("f-adresse", d.adresse);
     if (d.permis_conduire) document.getElementById("f-permis").checked = true;
     setVal("f-types-permis", d.types_permis); setVal("f-langues", d.langues);
@@ -1084,6 +1085,7 @@ async function analyserFichiers(files) {
     if (d.lien_site_web) champsTrouves.push(`<strong>Site personnel :</strong> ${esc(d.lien_site_web)}`);
     if (d.lien_agent || d.agence) champsTrouves.push(`<strong>Agence/agent :</strong> ${esc(d.agence || "")} ${esc(d.lien_agent || "")}`);
     if (d.iban) champsTrouves.push(`<strong>RIB détecté :</strong> IBAN ${esc(d.iban)}${d.bic ? " — BIC " + esc(d.bic) : ""}${d.titulaire_rib ? " — Titulaire : " + esc(d.titulaire_rib) : ""}`);
+    if (d.photo_annee) champsTrouves.push(`<strong>Année de la photo :</strong> ${esc(d.photo_annee)}`);
     if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
     if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
