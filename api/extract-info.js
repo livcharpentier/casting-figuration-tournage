@@ -56,6 +56,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "couleur_cheveux": "",
   "morphologie": "",
   "genre": "",                 // une valeur EXACTE parmi : "Homme", "Femme", "Enfant" (déduis-la si possible depuis le prénom/photo/contexte, sinon laisse vide)
+  "photo_annee": null,          // année de la photo elle-même (nombre, ex 2022), si elle est indiquée dans le nom du fichier (souvent en toute fin de nom) ou mentionnée dans le texte. Ne pas confondre avec la date de naissance.
   "telephone": "",
   "email": "",
   "adresse": "",
