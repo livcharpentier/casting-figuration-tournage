@@ -1002,6 +1002,23 @@ function detecterAnneeDansNoms(nomsFichiers) {
   return null;
 }
 
+// Repère un motif "Né 64" / "NE64" / "Née_01" dans le nom de fichier (année de naissance en 2 chiffres,
+// juste après le nom/prénom) et calcule l'âge actuel correspondant, sans passer par l'IA.
+function detecterAgeDansNoms(nomsFichiers) {
+  if (!nomsFichiers || !nomsFichiers.length) return null;
+  for (const nom of nomsFichiers) {
+    const m = nom.match(/n[ée]e?[_\s]?(\d{2})(?!\d)/i);
+    if (m) {
+      const deuxChiffres = Number(m[1]);
+      const anneeActuelle = new Date().getFullYear();
+      const seuil = anneeActuelle % 100;
+      const anneeNaissance = deuxChiffres <= seuil ? 2000 + deuxChiffres : 1900 + deuxChiffres;
+      return anneeActuelle - anneeNaissance;
+    }
+  }
+  return null;
+}
+
 async function analyserFichiers(files) {
   const textInput = document.getElementById("ai-text-input");
   const status = document.getElementById("ai-extract-status");
@@ -1056,7 +1073,7 @@ async function analyserFichiers(files) {
     const d = json.extracted || {};
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== null && val !== undefined && val !== "") el.value = val; };
     setVal("f-prenom", d.prenom); setVal("f-nom", d.nom);
-    setVal("f-date-naissance", d.date_naissance); setVal("f-age", d.age);
+    setVal("f-date-naissance", d.date_naissance); setVal("f-age", d.age || detecterAgeDansNoms(nomsFichiers));
     setVal("f-taille", d.taille_cm); setVal("f-poids", d.poids_kg); setVal("f-pointure", d.pointure);
     setVal("f-tour-taille", d.tour_taille); setVal("f-tour-poitrine", d.tour_poitrine);
     setVal("f-yeux", d.couleur_yeux); setVal("f-cheveux", d.couleur_cheveux); setVal("f-morphologie", d.morphologie);
