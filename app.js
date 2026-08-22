@@ -1004,7 +1004,7 @@ function detecterAnneeDansNoms(nomsFichiers) {
 
 // Repère un motif "Né 64" / "NE64" / "Née_01" dans le nom de fichier (année de naissance en 2 chiffres,
 // juste après le nom/prénom) et calcule l'âge actuel correspondant, sans passer par l'IA.
-function detecterAgeDansNoms(nomsFichiers) {
+function detecterNaissanceDansNoms(nomsFichiers) {
   if (!nomsFichiers || !nomsFichiers.length) return null;
   for (const nom of nomsFichiers) {
     const m = nom.match(/n[ée]e?[_\s]?(\d{2})(?!\d)/i);
@@ -1013,7 +1013,7 @@ function detecterAgeDansNoms(nomsFichiers) {
       const anneeActuelle = new Date().getFullYear();
       const seuil = anneeActuelle % 100;
       const anneeNaissance = deuxChiffres <= seuil ? 2000 + deuxChiffres : 1900 + deuxChiffres;
-      return anneeActuelle - anneeNaissance;
+      return { age: anneeActuelle - anneeNaissance, anneeNaissance };
     }
   }
   return null;
@@ -1073,7 +1073,15 @@ async function analyserFichiers(files) {
     const d = json.extracted || {};
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== null && val !== undefined && val !== "") el.value = val; };
     setVal("f-prenom", d.prenom); setVal("f-nom", d.nom);
-    setVal("f-date-naissance", d.date_naissance); setVal("f-age", d.age || detecterAgeDansNoms(nomsFichiers));
+    const naissanceDetectee = detecterNaissanceDansNoms(nomsFichiers);
+    setVal("f-date-naissance", d.date_naissance); setVal("f-age", d.age || (naissanceDetectee ? naissanceDetectee.age : null));
+    if (naissanceDetectee) {
+      const notesField = document.getElementById("f-notes");
+      const mention = `Né(e) en ${naissanceDetectee.anneeNaissance}`;
+      if (notesField && !notesField.value.includes(mention)) {
+        notesField.value = notesField.value ? `${notesField.value}\n${mention}` : mention;
+      }
+    }
     setVal("f-taille", d.taille_cm); setVal("f-poids", d.poids_kg); setVal("f-pointure", d.pointure);
     setVal("f-tour-taille", d.tour_taille); setVal("f-tour-poitrine", d.tour_poitrine);
     setVal("f-yeux", d.couleur_yeux); setVal("f-cheveux", d.couleur_cheveux); setVal("f-morphologie", d.morphologie);
@@ -1114,6 +1122,7 @@ async function analyserFichiers(files) {
     if (d.lien_agent || d.agence) champsTrouves.push(`<strong>Agence/agent :</strong> ${esc(d.agence || "")} ${esc(d.lien_agent || "")}`);
     if (d.iban) champsTrouves.push(`<strong>RIB détecté :</strong> IBAN ${esc(d.iban)}${d.bic ? " — BIC " + esc(d.bic) : ""}${d.titulaire_rib ? " — Titulaire : " + esc(d.titulaire_rib) : ""}`);
     if (d.photo_annee) champsTrouves.push(`<strong>Année de la photo :</strong> ${esc(d.photo_annee)}`);
+    if (naissanceDetectee) champsTrouves.push(`<strong>Naissance détectée dans le nom du fichier :</strong> Né(e) en ${naissanceDetectee.anneeNaissance} (âge ${naissanceDetectee.age} ans)`);
     if (d.competences_particulieres) champsTrouves.push(`<strong>Compétences :</strong> ${esc(d.competences_particulieres)}`);
     if (d.experience_parcours) champsTrouves.push(`<strong>Expérience / parcours :</strong><br>${esc(d.experience_parcours).replace(/\n/g, "<br>")}`);
     if (d.notes) champsTrouves.push(`<strong>Autres notes :</strong> ${esc(d.notes)}`);
