@@ -991,6 +991,17 @@ function enableDragDrop(zoneEl, fileInputEl, options = {}) {
   });
 }
 
+// Repère une année (19xx/20xx) dans un ou plusieurs noms de fichiers, sans passer par l'IA
+// (filet de sécurité si l'IA ne la remplit pas correctement elle-même).
+function detecterAnneeDansNoms(nomsFichiers) {
+  if (!nomsFichiers || !nomsFichiers.length) return null;
+  for (const nom of nomsFichiers) {
+    const matches = nom.match(/(19|20)\d{2}/g);
+    if (matches && matches.length) return Number(matches[matches.length - 1]);
+  }
+  return null;
+}
+
 async function analyserFichiers(files) {
   const textInput = document.getElementById("ai-text-input");
   const status = document.getElementById("ai-extract-status");
@@ -1050,7 +1061,7 @@ async function analyserFichiers(files) {
     setVal("f-tour-taille", d.tour_taille); setVal("f-tour-poitrine", d.tour_poitrine);
     setVal("f-yeux", d.couleur_yeux); setVal("f-cheveux", d.couleur_cheveux); setVal("f-morphologie", d.morphologie);
     setVal("f-genre", d.genre);
-    setVal("f-photo-annee", d.photo_annee);
+    setVal("f-photo-annee", d.photo_annee || detecterAnneeDansNoms(nomsFichiers));
     setVal("f-tel", d.telephone); setVal("f-email", d.email); setVal("f-adresse", d.adresse);
     if (d.permis_conduire) document.getElementById("f-permis").checked = true;
     setVal("f-types-permis", d.types_permis); setVal("f-langues", d.langues);
