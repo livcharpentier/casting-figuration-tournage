@@ -297,7 +297,7 @@ async function openFicheModal(id) {
               <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center; ${isCurrent ? "outline:2px solid var(--accent);" : ""}"></div>
             </a>
             <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
-            <div style="font-size:11px; font-weight:700; color:${yearColor}; text-align:center;">${year ? "" + year : "Année ?"}</div>
+            <input type="number" class="fiche-annee-edit" data-doc-id="${d.id}" data-personne-id="${p.id}" value="${year ?? ""}" placeholder="Année" style="width:100%; text-align:center; font-size:11px; font-weight:700; color:${yearColor}; background:var(--surface-2); border:1px solid var(--border); border-radius:5px; padding:2px 0; margin-top:2px;">
             ${isCurrent
               ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">Photo trombi actuelle</div>`
               : `<button type="button" class="btn-icon" style="font-size:10px; width:100%; text-align:center; margin-top:2px;" onclick="setPhotoTrombi('${p.id}', '${esc(d.fichier_url).replace(/'/g, "\\'")}')">Utiliser pour le trombi</button>`}
@@ -371,6 +371,21 @@ async function openFicheModal(id) {
   document.getElementById("btn-fiche-print").addEventListener("click", () => printFiche(p, documents));
   document.getElementById("btn-fiche-email").addEventListener("click", () => shareFicheByEmail(p, documents));
   document.getElementById("btn-fiche-whatsapp").addEventListener("click", () => shareFicheByWhatsapp(p, documents));
+
+  document.querySelectorAll(".fiche-annee-edit").forEach((input) => {
+    input.addEventListener("blur", async () => {
+      const val = input.value === "" ? null : Number(input.value);
+      const docId = input.dataset.docId;
+      const personneId = input.dataset.personneId;
+      if (docId === "principale") {
+        await sb.from("personnes").update({ photo_annee: val }).eq("id", personneId);
+        const pers = state.personnes.find((x) => x.id === personneId);
+        if (pers) pers.photo_annee = val;
+      } else {
+        await sb.from("documents_personne").update({ annee_photo: val }).eq("id", docId);
+      }
+    });
+  });
 }
 
 function buildFicheSummaryText(p, documents) {
@@ -1352,11 +1367,18 @@ function renderDocuments(docs) {
   if (!docs.length) { container.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">Aucun document ajouté.</div>`; return; }
   container.innerHTML = docs.map((d) => `
     <div class="doc-item">
-      <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}${d.type_document === "photo" && d.annee_photo ? " · " + d.annee_photo : ""}</span>
+      <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}</span>
       <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
+      ${d.type_document === "photo" ? `<input type="number" class="doc-annee-edit" data-doc-id="${d.id}" value="${d.annee_photo ?? ""}" placeholder="Année" style="width:64px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:3px 5px; font-size:12px;">` : ""}
       <button class="btn-icon" onclick="deleteDocument('${d.id}', '${state.currentEditingPersonneId}')">Supprimer</button>
     </div>
   `).join("");
+  document.querySelectorAll(".doc-annee-edit").forEach((input) => {
+    input.addEventListener("blur", async () => {
+      const val = input.value === "" ? null : Number(input.value);
+      await sb.from("documents_personne").update({ annee_photo: val }).eq("id", input.dataset.docId);
+    });
+  });
 }
 async function deleteDocument(docId, personneId) {
   await sb.from("documents_personne").delete().eq("id", docId);
