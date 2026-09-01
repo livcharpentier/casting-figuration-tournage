@@ -35,6 +35,7 @@ let state = {
   contratRolesJour: [],
   contratsPretsAImprimer: [],
   importMasseResultats: [],
+  importMailsMasseResultats: [],
   currentPrepayeJourId: null,
   currentRecapAdminJourId: null,
 };
@@ -733,6 +734,162 @@ async function lancerImportMasse() {
   document.getElementById("import-masse-review").style.display = "none";
   document.getElementById("import-masse-review").innerHTML = "";
   state.importMasseResultats = [];
+  await loadPersonnes();
+}
+
+// ==========================================================
+// IMPORT EN MASSE DEPUIS DES MAILS COLLÉS
+// ==========================================================
+document.getElementById("btn-import-mails-masse").addEventListener("click", () => {
+  openModal(`
+    <span class="close-x" onclick="closeModalAvecConfirmation()">×</span>
+    <h2>Import en masse depuis des mails collés</h2>
+    <p style="font-size:13px; color:var(--text-muted);">Colle tous les mails à la suite. <strong>Sépare chaque mail par une ligne contenant seulement trois tirets : ---</strong> (sur sa propre ligne, entre deux mails).</p>
+    <textarea id="mails-masse-textarea" style="width:100%; min-height:260px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px; font-family:var(--font-ui);" placeholder="Mail de la 1ère personne...&#10;&#10;---&#10;&#10;Mail de la 2ème personne...&#10;&#10;---&#10;&#10;Mail de la 3ème personne..."></textarea>
+    <div id="mails-masse-status" style="font-size:12px; color:var(--text-muted); margin-top:8px;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+      <button class="btn secondary" onclick="closeModalAvecConfirmation()">Annuler</button>
+      <button class="btn" id="btn-analyser-mails-masse">Analyser les mails</button>
+    </div>
+  `);
+  document.getElementById("btn-analyser-mails-masse").addEventListener("click", analyserMailsMasse);
+});
+
+async function analyserMailsMasse() {
+  const texteComplet = document.getElementById("mails-masse-textarea").value;
+  const status = document.getElementById("mails-masse-status");
+  const blocs = texteComplet.split(/\n\s*---\s*\n/).map((b) => b.trim()).filter((b) => b.length > 20);
+  if (!blocs.length) { status.textContent = "Aucun mail détecté. Vérifie que chaque mail est bien séparé par une ligne \"---\"."; return; }
+
+  const TAILLE_PAQUET = 8; // mails complets = plus de texte par ligne que les noms de fichiers, on réduit le lot
+  const nbPaquets = Math.ceil(blocs.length / TAILLE_PAQUET);
+  let resultatsComplets = [];
+
+  for (let p = 0; p < nbPaquets; p++) {
+    const debut = p * TAILLE_PAQUET;
+    const fin = Math.min(debut + TAILLE_PAQUET, blocs.length);
+    const paquetBlocs = blocs.slice(debut, fin);
+    status.innerHTML = `<span class="spinner"></span> Analyse : mails ${debut + 1} à ${fin} sur ${blocs.length}...`;
+
+    const texte = paquetBlocs.map((b, i) => `=== MAIL N°${i} ===\n${b}`).join("\n\n");
+    try {
+      const resultats = await callExtractPdtApi({ type: "import_emails_masse", texte });
+      resultats.forEach((r) => {
+        const idx = Number(r.numero);
+        if (paquetBlocs[idx] !== undefined) resultatsComplets.push(r);
+      });
+    } catch (err) {
+      status.textContent = "Erreur : " + err.message;
+      return;
+    }
+  }
+
+  closeModal();
+  const statusGlobal = document.getElementById("import-masse-status");
+  statusGlobal.textContent = `${resultatsComplets.length} fiche(s) détectée(s) sur ${blocs.length} mail(s). Vérifie ci-dessous avant d'importer.`;
+  state.importMailsMasseResultats = resultatsComplets;
+  renderImportMailsMasseReview(resultatsComplets);
+}
+
+function renderImportMailsMasseReview(resultats) {
+  const container = document.getElementById("import-masse-review");
+  if (!resultats.length) { container.style.display = "none"; return; }
+  container.style.display = "block";
+
+  function trouverDoublon(nom, prenom) {
+    const n = (nom || "").trim().toLowerCase();
+    const pr = (prenom || "").trim().toLowerCase();
+    return state.personnes.find((x) => (x.nom || "").trim().toLowerCase() === n && (x.prenom || "").trim().toLowerCase() === pr);
+  }
+
+  container.innerHTML = `
+    <div class="filter-panel">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Les doublons potentiels sont décochés par défaut.</div>
+      <div style="max-height:400px; overflow-y:auto;">
+        <table class="role-table">
+          <thead><tr><th><input type="checkbox" id="mails-masse-check-all" checked></th><th>Nom</th><th>Prénom</th><th>Type</th><th>Genre</th><th>Âge</th><th>Taille</th><th>Tél</th><th>Email</th><th>Statut</th></tr></thead>
+          <tbody>
+            ${resultats.map((r, i) => {
+              const doublon = trouverDoublon(r.nom, r.prenom);
+              return `
+              <tr>
+                <td><input type="checkbox" class="mails-masse-row-check" data-idx="${i}" ${doublon ? "" : "checked"}></td>
+                <td>${esc(r.nom)}</td>
+                <td>${esc(r.prenom)}</td>
+                <td>${esc(r.type_personne)}</td>
+                <td>${esc(r.genre)}</td>
+                <td>${r.age ?? ""}</td>
+                <td>${r.taille_cm ?? ""}</td>
+                <td>${esc(r.telephone)}</td>
+                <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
+                <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
+              </tr>
+            `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+        <button class="btn secondary" id="btn-mails-masse-annuler">Annuler</button>
+        <button class="btn" id="btn-mails-masse-confirmer">Importer les fiches sélectionnées</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("mails-masse-check-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".mails-masse-row-check").forEach((c) => { c.checked = e.target.checked; });
+  });
+  document.getElementById("btn-mails-masse-annuler").addEventListener("click", () => { container.style.display = "none"; container.innerHTML = ""; });
+  document.getElementById("btn-mails-masse-confirmer").addEventListener("click", lancerImportMailsMasse);
+}
+
+async function lancerImportMailsMasse() {
+  const resultats = state.importMailsMasseResultats || [];
+  const selectionnes = Array.from(document.querySelectorAll(".mails-masse-row-check:checked")).map((c) => resultats[Number(c.dataset.idx)]);
+  if (!selectionnes.length) { alert("Sélectionne au moins une fiche."); return; }
+
+  const status = document.getElementById("import-masse-status");
+  const btn = document.getElementById("btn-mails-masse-confirmer");
+  btn.disabled = true;
+  let reussies = 0;
+  let echecs = 0;
+
+  for (let i = 0; i < selectionnes.length; i++) {
+    const r = selectionnes[i];
+    status.innerHTML = `<span class="spinner"></span> Import en cours : ${i + 1} sur ${selectionnes.length} (${reussies} réussie(s), ${echecs} échec(s))...`;
+    try {
+      await sb.from("personnes").insert({
+        nom: r.nom || "",
+        prenom: r.prenom || "",
+        type_personne: ["comedien", "figurant", "comedien_figurant"].includes(r.type_personne) ? r.type_personne : "figurant",
+        genre: ["Homme", "Femme", "Enfant"].includes(r.genre) ? r.genre : null,
+        date_naissance: r.date_naissance || null,
+        age: r.age || null,
+        taille_cm: r.taille_cm || null,
+        telephone: r.telephone || null,
+        email: r.email || null,
+        adresse: r.adresse || null,
+        permis_conduire: !!r.permis_conduire,
+        types_permis: r.types_permis || null,
+        langues: r.langues || null,
+        competences_particulieres: r.competences_particulieres || null,
+        lien_instagram: r.lien_instagram || null,
+        lien_showreel: r.lien_showreel || null,
+        lien_site_web: r.lien_site_web || null,
+        agence: r.agence || null,
+        experience_parcours: r.experience_parcours || null,
+        notes: r.notes || null,
+      });
+      reussies++;
+    } catch (err) {
+      console.error("Erreur import mail", r.nom, err);
+      echecs++;
+    }
+  }
+
+  status.textContent = `Import terminé : ${reussies} fiche(s) créée(s), ${echecs} échec(s). Pense à ajouter les photos individuellement ensuite si besoin.`;
+  document.getElementById("import-masse-review").style.display = "none";
+  document.getElementById("import-masse-review").innerHTML = "";
+  state.importMailsMasseResultats = [];
   await loadPersonnes();
 }
 
