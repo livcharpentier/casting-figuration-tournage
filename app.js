@@ -654,7 +654,7 @@ function renderImportMasseReview(resultats) {
 
   container.innerHTML = `
     <div class="filter-panel">
-      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Les doublons potentiels (même nom+prénom déjà dans la base) sont signalés et décochés par défaut.</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Si une fiche du même nom+prénom existe déjà (ex: créée via l'import de mails), la photo sera automatiquement rattachée à cette fiche existante au lieu d'en créer une nouvelle.</div>
       <div style="max-height:400px; overflow-y:auto;">
         <table class="role-table">
           <thead><tr><th><input type="checkbox" id="import-masse-check-all" checked></th><th>Photo</th><th>Nom</th><th>Prénom</th><th>Type</th><th>Genre</th><th>Âge</th><th>Taille</th><th>Tél</th><th>Email</th><th>Année</th><th>Statut</th></tr></thead>
@@ -663,7 +663,7 @@ function renderImportMasseReview(resultats) {
               const doublon = trouverDoublon(r.nom, r.prenom);
               return `
               <tr>
-                <td><input type="checkbox" class="import-masse-row-check" data-idx="${i}" ${doublon ? "" : "checked"}></td>
+                <td><input type="checkbox" class="import-masse-row-check" data-idx="${i}" checked></td>
                 <td><img class="thumb" src="${URL.createObjectURL(r.file)}" style="width:40px;height:50px;object-fit:cover;border-radius:4px;"></td>
                 <td>${esc(r.nom)}</td>
                 <td>${esc(r.prenom)}</td>
@@ -674,7 +674,7 @@ function renderImportMasseReview(resultats) {
                 <td>${esc(r.telephone)}</td>
                 <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
                 <td>${r.photo_annee ?? ""}</td>
-                <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
+                <td>${doublon ? "Photo à rattacher à la fiche existante" : "Nouvelle fiche"}</td>
               </tr>
             `;
             }).join("")}
@@ -703,34 +703,54 @@ async function lancerImportMasse() {
   const btn = document.getElementById("btn-import-masse-confirmer");
   btn.disabled = true;
   let reussies = 0;
+  let rattachees = 0;
   let echecs = 0;
 
   for (let i = 0; i < selectionnes.length; i++) {
     const r = selectionnes[i];
-    status.innerHTML = `<span class="spinner"></span> Import en cours : ${i + 1} sur ${selectionnes.length} (${reussies} réussie(s), ${echecs} échec(s))...`;
+    status.innerHTML = `<span class="spinner"></span> Import en cours : ${i + 1} sur ${selectionnes.length} (${reussies + rattachees} traitée(s), ${echecs} échec(s))...`;
     try {
       const photo_url = await uploadToStorage(r.file, "photos");
-      await sb.from("personnes").insert({
-        nom: r.nom || "",
-        prenom: r.prenom || "",
-        type_personne: ["comedien", "figurant", "comedien_figurant"].includes(r.type_personne) ? r.type_personne : "figurant",
-        genre: ["Homme", "Femme", "Enfant"].includes(r.genre) ? r.genre : null,
-        age: r.age || null,
-        taille_cm: r.taille_cm || null,
-        telephone: r.telephone || null,
-        email: r.email || null,
-        photo_url,
-        photo_annee: r.photo_annee || null,
-        notes: r.notes || null,
-      });
-      reussies++;
+      const nomNorm = (r.nom || "").trim().toLowerCase();
+      const prenomNorm = (r.prenom || "").trim().toLowerCase();
+      const fichExistante = state.personnes.find((x) => (x.nom || "").trim().toLowerCase() === nomNorm && (x.prenom || "").trim().toLowerCase() === prenomNorm);
+
+      if (fichExistante) {
+        // Fiche déjà créée (ex: via import de mails) : on y rattache la photo, en complétant
+        // seulement les champs encore vides pour ne pas écraser des infos déjà corrigées.
+        const maj = { photo_url };
+        if (!fichExistante.age && r.age) maj.age = r.age;
+        if (!fichExistante.taille_cm && r.taille_cm) maj.taille_cm = r.taille_cm;
+        if (!fichExistante.telephone && r.telephone) maj.telephone = r.telephone;
+        if (!fichExistante.email && r.email) maj.email = r.email;
+        if (!fichExistante.photo_annee && r.photo_annee) maj.photo_annee = r.photo_annee;
+        if (!fichExistante.genre && r.genre) maj.genre = r.genre;
+        await sb.from("personnes").update(maj).eq("id", fichExistante.id);
+        Object.assign(fichExistante, maj);
+        rattachees++;
+      } else {
+        await sb.from("personnes").insert({
+          nom: r.nom || "",
+          prenom: r.prenom || "",
+          type_personne: ["comedien", "figurant", "comedien_figurant"].includes(r.type_personne) ? r.type_personne : "figurant",
+          genre: ["Homme", "Femme", "Enfant"].includes(r.genre) ? r.genre : null,
+          age: r.age || null,
+          taille_cm: r.taille_cm || null,
+          telephone: r.telephone || null,
+          email: r.email || null,
+          photo_url,
+          photo_annee: r.photo_annee || null,
+          notes: r.notes || null,
+        });
+        reussies++;
+      }
     } catch (err) {
       console.error("Erreur import", r.file.name, err);
       echecs++;
     }
   }
 
-  status.textContent = `Import terminé : ${reussies} fiche(s) créée(s), ${echecs} échec(s).`;
+  status.textContent = `Import terminé : ${reussies} nouvelle(s) fiche(s) créée(s), ${rattachees} photo(s) rattachée(s) à une fiche existante, ${echecs} échec(s).`;
   document.getElementById("import-masse-review").style.display = "none";
   document.getElementById("import-masse-review").innerHTML = "";
   state.importMasseResultats = [];
