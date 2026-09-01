@@ -34,6 +34,7 @@ let state = {
   currentContratJourId: null,
   contratRolesJour: [],
   contratsPretsAImprimer: [],
+  importMasseResultats: [],
   currentPrepayeJourId: null,
   currentRecapAdminJourId: null,
 };
@@ -597,6 +598,143 @@ document.getElementById("btn-deviner-genre").addEventListener("click", async () 
 });
 
 document.getElementById("btn-new-personne").addEventListener("click", () => openPersonneModal(null));
+
+// ==========================================================
+// IMPORT EN MASSE DEPUIS DES PHOTOS (nom de fichier structuré, sans analyse d'image)
+// ==========================================================
+document.getElementById("btn-import-masse").addEventListener("click", () => {
+  document.getElementById("import-masse-input").click();
+});
+
+document.getElementById("import-masse-input").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  const status = document.getElementById("import-masse-status");
+  const TAILLE_PAQUET = 50;
+  const nbPaquets = Math.ceil(files.length / TAILLE_PAQUET);
+  let resultatsComplets = [];
+
+  for (let p = 0; p < nbPaquets; p++) {
+    const debut = p * TAILLE_PAQUET;
+    const fin = Math.min(debut + TAILLE_PAQUET, files.length);
+    const paquetFiles = files.slice(debut, fin);
+    status.innerHTML = `<span class="spinner"></span> Lecture des noms de fichiers : ${debut + 1} à ${fin} sur ${files.length}...`;
+
+    const texte = paquetFiles.map((f, i) => `${i} | ${f.name}`).join("\n");
+    try {
+      const resultats = await callExtractPdtApi({ type: "import_photos_masse", texte });
+      resultats.forEach((r) => {
+        const idx = Number(r.numero);
+        const file = paquetFiles[idx];
+        if (file) resultatsComplets.push({ file, ...r });
+      });
+    } catch (err) {
+      status.textContent = "Erreur : " + err.message;
+      return;
+    }
+  }
+
+  status.textContent = `${resultatsComplets.length} fiche(s) détectée(s) sur ${files.length} photo(s). Vérifie ci-dessous avant d'importer.`;
+  state.importMasseResultats = resultatsComplets;
+  renderImportMasseReview(resultatsComplets);
+  e.target.value = ""; // permet de resélectionner les mêmes fichiers si besoin
+});
+
+function renderImportMasseReview(resultats) {
+  const container = document.getElementById("import-masse-review");
+  if (!resultats.length) { container.style.display = "none"; return; }
+  container.style.display = "block";
+
+  function trouverDoublon(nom, prenom) {
+    const n = (nom || "").trim().toLowerCase();
+    const pr = (prenom || "").trim().toLowerCase();
+    return state.personnes.find((x) => (x.nom || "").trim().toLowerCase() === n && (x.prenom || "").trim().toLowerCase() === pr);
+  }
+
+  container.innerHTML = `
+    <div class="filter-panel">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Les doublons potentiels (même nom+prénom déjà dans la base) sont signalés et décochés par défaut.</div>
+      <div style="max-height:400px; overflow-y:auto;">
+        <table class="role-table">
+          <thead><tr><th><input type="checkbox" id="import-masse-check-all" checked></th><th>Photo</th><th>Nom</th><th>Prénom</th><th>Type</th><th>Genre</th><th>Âge</th><th>Taille</th><th>Tél</th><th>Email</th><th>Année</th><th>Statut</th></tr></thead>
+          <tbody>
+            ${resultats.map((r, i) => {
+              const doublon = trouverDoublon(r.nom, r.prenom);
+              return `
+              <tr>
+                <td><input type="checkbox" class="import-masse-row-check" data-idx="${i}" ${doublon ? "" : "checked"}></td>
+                <td><img class="thumb" src="${URL.createObjectURL(r.file)}" style="width:40px;height:50px;object-fit:cover;border-radius:4px;"></td>
+                <td>${esc(r.nom)}</td>
+                <td>${esc(r.prenom)}</td>
+                <td>${esc(r.type_personne)}</td>
+                <td>${esc(r.genre)}</td>
+                <td>${r.age ?? ""}</td>
+                <td>${r.taille_cm ?? ""}</td>
+                <td>${esc(r.telephone)}</td>
+                <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
+                <td>${r.photo_annee ?? ""}</td>
+                <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
+              </tr>
+            `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+        <button class="btn secondary" id="btn-import-masse-annuler">Annuler</button>
+        <button class="btn" id="btn-import-masse-confirmer">Importer les fiches sélectionnées</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("import-masse-check-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".import-masse-row-check").forEach((c) => { c.checked = e.target.checked; });
+  });
+  document.getElementById("btn-import-masse-annuler").addEventListener("click", () => { container.style.display = "none"; container.innerHTML = ""; });
+  document.getElementById("btn-import-masse-confirmer").addEventListener("click", lancerImportMasse);
+}
+
+async function lancerImportMasse() {
+  const resultats = state.importMasseResultats || [];
+  const selectionnes = Array.from(document.querySelectorAll(".import-masse-row-check:checked")).map((c) => resultats[Number(c.dataset.idx)]);
+  if (!selectionnes.length) { alert("Sélectionne au moins une fiche."); return; }
+
+  const status = document.getElementById("import-masse-status");
+  const btn = document.getElementById("btn-import-masse-confirmer");
+  btn.disabled = true;
+  let reussies = 0;
+  let echecs = 0;
+
+  for (let i = 0; i < selectionnes.length; i++) {
+    const r = selectionnes[i];
+    status.innerHTML = `<span class="spinner"></span> Import en cours : ${i + 1} sur ${selectionnes.length} (${reussies} réussie(s), ${echecs} échec(s))...`;
+    try {
+      const photo_url = await uploadToStorage(r.file, "photos");
+      await sb.from("personnes").insert({
+        nom: r.nom || "",
+        prenom: r.prenom || "",
+        type_personne: ["comedien", "figurant", "comedien_figurant"].includes(r.type_personne) ? r.type_personne : "figurant",
+        genre: ["Homme", "Femme", "Enfant"].includes(r.genre) ? r.genre : null,
+        age: r.age || null,
+        taille_cm: r.taille_cm || null,
+        telephone: r.telephone || null,
+        email: r.email || null,
+        photo_url,
+        photo_annee: r.photo_annee || null,
+        notes: r.notes || null,
+      });
+      reussies++;
+    } catch (err) {
+      console.error("Erreur import", r.file.name, err);
+      echecs++;
+    }
+  }
+
+  status.textContent = `Import terminé : ${reussies} fiche(s) créée(s), ${echecs} échec(s).`;
+  document.getElementById("import-masse-review").style.display = "none";
+  document.getElementById("import-masse-review").innerHTML = "";
+  state.importMasseResultats = [];
+  await loadPersonnes();
+}
 
 function personneFormFields(p = {}) {
   return `
