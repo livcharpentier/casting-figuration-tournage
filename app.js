@@ -198,6 +198,16 @@ function renderPersonnesGrid() {
   if (typeFilter) list = list.filter((p) => p.type_personne === typeFilter);
   if (genreFilter) list = list.filter((p) => p.genre === genreFilter);
 
+  const totalGeneral = state.personnes.length;
+  const nbComediens = state.personnes.filter((p) => p.type_personne === "comedien").length;
+  const nbFigurants = state.personnes.filter((p) => p.type_personne === "figurant").length;
+  const nbComediensFigurants = state.personnes.filter((p) => p.type_personne === "comedien_figurant").length;
+  const compteurEl = document.getElementById("personnes-total-count");
+  const filtreActif = search || typeFilter || genreFilter;
+  compteurEl.textContent = filtreActif
+    ? `${list.length} personne(s) affichée(s) sur ${totalGeneral} au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`
+    : `${totalGeneral} personne(s) au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`;
+
   if (!list.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune personne trouvée.</div>`;
     return;
