@@ -95,8 +95,28 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter.`;
+    } else if (type === 'import_photos_masse') {
+      contextText = `Voici une liste de noms de fichiers photo de comédiens/figurants pour un tournage. Chaque nom de fichier suit souvent cet ordre (séparateurs "__" ou "_", variables) : NOM_PRENOM__AGE_ANS__TAILLE__VILLE__TYPE__DEMO__TELEPHONE__EMAIL__ANNEE. Il faut extraire une fiche par ligne.`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balises markdown), où chaque élément correspond à une ligne fournie, avec exactement ces clés :
+[
+  {
+    "numero": "",              // le numéro exact tel qu'indiqué devant chaque ligne
+    "nom": "",
+    "prenom": "",
+    "type_personne": "",       // une valeur EXACTE parmi : "comedien", "figurant", "comedien_figurant" (si les deux mentionnés, ou incertain, mets "figurant" par défaut)
+    "genre": "",               // "Homme", "Femme" ou "Enfant" (déduit du prénom/âge, laisse vide si incertain)
+    "age": null,               // nombre ou null. Si un motif "26_ANS" apparaît, c'est l'âge AU MOMENT DE LA PHOTO : si une année de photo est aussi présente, recalcule l'âge actuel = age_a_la_photo + (annee_actuelle - annee_photo). Si un motif "NE64"/"NE_01" apparaît (année de naissance en 2 chiffres, SANS le siècle : "64"="1964", "01"="2001" selon la proximité avec l'année actuelle), calcule l'âge actuel à partir de cette année de naissance.
+    "taille_cm": null,         // nombre ou null. Un motif "1_80M" ou "1_80" = 180 cm.
+    "telephone": "",           // reconstitue proprement (ex "06_67_76_22_17" → "06 67 76 22 17")
+    "email": "",               // reconstitue proprement (underscores → "@" et "." ; ex "jean_dupont_hotmail_fr" → "jean.dupont@hotmail.fr")
+    "photo_annee": null,       // année de la photo (nombre), généralement en toute fin de nom de fichier
+    "notes": ""                // toute info utile non casée ailleurs : ville/lieu mentionné, "pratique le théâtre", "a un agent", "a un site", "a une bande démo", etc. Une ligne par info si plusieurs, séparées par " ; ".
+  }
+]
+Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter. Ne pas inventer d'information absente du nom de fichier.`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants' ou 'genre_personnes'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes' ou 'import_photos_masse'." });
       return;
     }
 
