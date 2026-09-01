@@ -115,8 +115,38 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter. Ne pas inventer d'information absente du nom de fichier.`;
+    } else if (type === 'import_emails_masse') {
+      contextText = `Voici plusieurs mails de candidature de comédiens/figurants pour un tournage, collés à la suite et séparés par une ligne "---". Chaque bloc (numéroté) correspond à un mail d'une personne différente.`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balises markdown), où chaque élément correspond à un bloc/mail numéroté, avec exactement ces clés :
+[
+  {
+    "numero": "",                    // le numéro exact indiqué devant chaque bloc
+    "nom": "",
+    "prenom": "",
+    "type_personne": "",             // "comedien", "figurant" ou "comedien_figurant" (par défaut "figurant" si incertain)
+    "genre": "",                     // "Homme", "Femme" ou "Enfant" si déductible, sinon ""
+    "date_naissance": "",            // format AAAA-MM-JJ si trouvable, sinon ""
+    "age": null,
+    "taille_cm": null,
+    "telephone": "",
+    "email": "",
+    "adresse": "",
+    "permis_conduire": false,
+    "types_permis": "",
+    "langues": "",
+    "competences_particulieres": "",
+    "lien_instagram": "",
+    "lien_showreel": "",
+    "lien_site_web": "",
+    "agence": "",
+    "experience_parcours": "",       // théâtre, tournages, formations mentionnés (une ligne par expérience, séparées par des retours à la ligne réels dans la chaîne)
+    "notes": ""                      // toute autre info utile
+  }
+]
+Traite absolument tous les blocs fournis, dans l'ordre, sans en sauter. Ne pas inventer d'information absente du texte.`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes' ou 'import_photos_masse'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes', 'import_photos_masse' ou 'import_emails_masse'." });
       return;
     }
 
@@ -137,7 +167,7 @@ Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter. Ne p
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
+        max_tokens: 6000,
         messages: [
           { role: 'user', content },
           { role: 'assistant', content: '[' }
