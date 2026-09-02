@@ -199,25 +199,16 @@ async function loadPersonnes() {
 
 function renderPersonnesGrid() {
   const search = document.getElementById("search-personnes").value.trim().toLowerCase();
-  const typeFilter = document.getElementById("filter-type-personne").value;
-  const genreFilter = document.getElementById("filter-genre-personne").value;
-  const trancheAgeFilter = document.getElementById("filter-tranche-age").value;
   const grid = document.getElementById("personnes-grid");
   let list = state.personnes;
   if (search) list = list.filter((p) => `${p.nom} ${p.prenom}`.toLowerCase().includes(search));
-  if (typeFilter) list = list.filter((p) => p.type_personne === typeFilter);
-  if (genreFilter) list = list.filter((p) => p.genre === genreFilter);
-  if (trancheAgeFilter === "adultes") list = list.filter((p) => p.age !== null && p.age !== undefined && p.age >= 18);
-  else if (trancheAgeFilter === "enfants") list = list.filter((p) => p.age !== null && p.age !== undefined && p.age >= 0 && p.age <= 15);
-  else if (trancheAgeFilter === "ados") list = list.filter((p) => p.age !== null && p.age !== undefined && p.age >= 16 && p.age <= 17);
 
   const totalGeneral = state.personnes.length;
   const nbComediens = state.personnes.filter((p) => p.type_personne === "comedien").length;
   const nbFigurants = state.personnes.filter((p) => p.type_personne === "figurant").length;
   const nbComediensFigurants = state.personnes.filter((p) => p.type_personne === "comedien_figurant").length;
   const compteurEl = document.getElementById("personnes-total-count");
-  const filtreActif = search || typeFilter || genreFilter || trancheAgeFilter;
-  compteurEl.textContent = filtreActif
+  compteurEl.textContent = search
     ? `${list.length} personne(s) affichée(s) sur ${totalGeneral} au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`
     : `${totalGeneral} personne(s) au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`;
 
@@ -588,9 +579,6 @@ async function quickDeletePersonne(id) {
   await loadPersonnes();
 }
 document.getElementById("search-personnes").addEventListener("input", renderPersonnesGrid);
-document.getElementById("filter-type-personne").addEventListener("change", renderPersonnesGrid);
-document.getElementById("filter-genre-personne").addEventListener("change", renderPersonnesGrid);
-document.getElementById("filter-tranche-age").addEventListener("change", renderPersonnesGrid);
 
 document.getElementById("btn-deviner-genre").addEventListener("click", async () => {
   const status = document.getElementById("deviner-genre-status");
