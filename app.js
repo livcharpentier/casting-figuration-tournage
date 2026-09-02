@@ -202,7 +202,6 @@ function renderPersonnesGrid() {
   const typeFilter = document.getElementById("filter-type-personne").value;
   const genreFilter = document.getElementById("filter-genre-personne").value;
   const trancheAgeFilter = document.getElementById("filter-tranche-age").value;
-  const anneePhotoMaxFilter = document.getElementById("filter-annee-photo-max").value;
   const grid = document.getElementById("personnes-grid");
   let list = state.personnes;
   if (search) list = list.filter((p) => `${p.nom} ${p.prenom}`.toLowerCase().includes(search));
@@ -211,33 +210,16 @@ function renderPersonnesGrid() {
   if (trancheAgeFilter === "adultes") list = list.filter((p) => p.age !== null && p.age !== undefined && p.age >= 18);
   else if (trancheAgeFilter === "enfants") list = list.filter((p) => p.age !== null && p.age !== undefined && p.age >= 0 && p.age <= 15);
   else if (trancheAgeFilter === "ados") list = list.filter((p) => p.age !== null && p.age !== undefined && p.age >= 16 && p.age <= 17);
-  if (anneePhotoMaxFilter) list = list.filter((p) => p.photo_annee && p.photo_annee <= Number(anneePhotoMaxFilter));
 
   const totalGeneral = state.personnes.length;
   const nbComediens = state.personnes.filter((p) => p.type_personne === "comedien").length;
   const nbFigurants = state.personnes.filter((p) => p.type_personne === "figurant").length;
   const nbComediensFigurants = state.personnes.filter((p) => p.type_personne === "comedien_figurant").length;
   const compteurEl = document.getElementById("personnes-total-count");
-  const filtreActif = search || typeFilter || genreFilter || trancheAgeFilter || anneePhotoMaxFilter;
+  const filtreActif = search || typeFilter || genreFilter || trancheAgeFilter;
   compteurEl.textContent = filtreActif
     ? `${list.length} personne(s) affichée(s) sur ${totalGeneral} au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`
     : `${totalGeneral} personne(s) au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`;
-
-  const panelRenouvellement = document.getElementById("renouvellement-panel");
-  if (anneePhotoMaxFilter && list.length) {
-    const avecEmail = list.filter((p) => p.email);
-    panelRenouvellement.style.display = "block";
-    panelRenouvellement.innerHTML = `
-      <div class="filter-panel" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <span>${list.length} personne(s) avec une photo de ${esc(anneePhotoMaxFilter)} ou plus ancienne — ${avecEmail.length} avec une adresse mail connue.</span>
-        <button class="btn" id="btn-demander-renouvellement">Envoyer une demande de renouvellement (${avecEmail.length})</button>
-      </div>
-    `;
-    document.getElementById("btn-demander-renouvellement").addEventListener("click", () => envoyerDemandeRenouvellement(avecEmail, anneePhotoMaxFilter));
-  } else {
-    panelRenouvellement.style.display = "none";
-    panelRenouvellement.innerHTML = "";
-  }
 
   if (!list.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucune personne trouvée.</div>`;
@@ -609,7 +591,6 @@ document.getElementById("search-personnes").addEventListener("input", renderPers
 document.getElementById("filter-type-personne").addEventListener("change", renderPersonnesGrid);
 document.getElementById("filter-genre-personne").addEventListener("change", renderPersonnesGrid);
 document.getElementById("filter-tranche-age").addEventListener("change", renderPersonnesGrid);
-document.getElementById("filter-annee-photo-max").addEventListener("input", renderPersonnesGrid);
 
 document.getElementById("btn-deviner-genre").addEventListener("click", async () => {
   const status = document.getElementById("deviner-genre-status");
@@ -1835,6 +1816,8 @@ async function generateTrombinoscopePortraits() {
   if (trancheAge === "adultes") query = query.gte("age", 18);
   else if (trancheAge === "enfants") query = query.gte("age", 0).lte("age", 15);
   else if (trancheAge === "ados") query = query.gte("age", 16).lte("age", 17);
+  const anneePhotoMax = document.getElementById("tf-annee-photo-max").value;
+  if (anneePhotoMax) query = query.lte("photo_annee", Number(anneePhotoMax)).not("photo_annee", "is", null);
   if (permis) query = query.eq("permis_conduire", true);
 
   const { data, error } = await query.order("nom");
@@ -1857,6 +1840,21 @@ async function generateTrombinoscopePortraits() {
 
   document.getElementById("trombi-count").textContent = `${list.length} personne(s) correspondent aux critères.`;
   const grid = document.getElementById("trombi-results");
+  const panelRenouvellement = document.getElementById("trombi-renouvellement-panel");
+  if (anneePhotoMax && list.length) {
+    const avecEmail = list.filter((p) => p.email);
+    panelRenouvellement.style.display = "block";
+    panelRenouvellement.innerHTML = `
+      <div class="filter-panel" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span>${list.length} personne(s) avec une photo de ${esc(anneePhotoMax)} ou plus ancienne — ${avecEmail.length} avec une adresse mail connue.</span>
+        <button class="btn" id="btn-demander-renouvellement">Envoyer une demande de renouvellement (${avecEmail.length})</button>
+      </div>
+    `;
+    document.getElementById("btn-demander-renouvellement").addEventListener("click", () => envoyerDemandeRenouvellement(avecEmail, anneePhotoMax));
+  } else {
+    panelRenouvellement.style.display = "none";
+    panelRenouvellement.innerHTML = "";
+  }
   if (!list.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Aucun résultat pour ces critères.</div>`; state.lastTrombiSummary = []; state.lastTrombiRawList = []; return; }
   state.lastTrombiRawList = list;
   state.lastTrombiSummary = list.map((p) => ({
@@ -2020,6 +2018,7 @@ document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-type").value = "";
   document.getElementById("tf-genre").value = "";
   document.getElementById("tf-tranche-age").value = "";
+  document.getElementById("tf-annee-photo-max").value = "";
   document.getElementById("tf-nom").value = "";
   document.getElementById("tf-taille-min").value = "";
   document.getElementById("tf-taille-max").value = "";
