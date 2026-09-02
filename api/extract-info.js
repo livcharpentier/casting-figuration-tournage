@@ -59,7 +59,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "photo_annee": null,          // IMPORTANT, à remplir en priorité : dès qu'un nombre à 4 chiffres ressemblant à une année (19xx ou 20xx) apparaît N'IMPORTE OÙ dans le nom du fichier (pas seulement en toute fin) ou dans le texte fourni, mets-le ICI sous forme de nombre (ex 2022), et PAS SEULEMENT dans "notes". Ne pas confondre avec une date de naissance (qui a un format jour/mois/année).
   "telephone": "",
   "email": "",
-  "adresse": "",
+  "adresse": "",                // IMPORTANT, à remplir en priorité : dès qu'une ville, un lieu de résidence ou une adresse est mentionné n'importe où (nom de fichier, texte, notes potentielles), mets-le ICI, et PAS SEULEMENT dans "notes". Même une simple ville seule (ex "Bagneux") doit être mise ici.
   "permis_conduire": false,    // true si mention d'un permis
   "types_permis": "",          // ex "B, moto"
   "langues": "",
