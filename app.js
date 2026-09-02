@@ -47,6 +47,20 @@ function esc(str) {
   if (str === null || str === undefined) return "";
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+
+// Extrait juste "Ville (Département)" à partir d'une adresse complète (si un code postal à 5 chiffres est trouvé),
+// pour un affichage plus compact sur les cartes. Sinon, renvoie l'adresse telle quelle.
+function extraireVilleDepartement(adresse) {
+  if (!adresse) return "";
+  const m = adresse.match(/(\d{5})\s+([^\d,]+?)\s*$/);
+  if (!m) return adresse;
+  const codePostal = m[1];
+  const ville = m[2].trim();
+  let dept = codePostal.slice(0, 2);
+  if (dept === "20") dept = Number(codePostal) < 20200 ? "2A" : "2B";
+  else if (dept === "97" || dept === "98") dept = codePostal.slice(0, 3);
+  return `${ville} (${dept})`;
+}
 function openModal(html) {
   const overlay = document.getElementById("modal-overlay");
   overlay.innerHTML = `<div class="modal">${html}</div>`;
@@ -242,6 +256,7 @@ function renderPersonnesGrid() {
       <div class="info">
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" : ""}</div>
+        ${p.adresse ? `<div class="meta">${esc(extraireVilleDepartement(p.adresse))}</div>` : ""}
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
         <div style="margin-top:4px;">${photoDateBadgeHtml(p.photo_annee)}</div>
         <select onclick="event.stopPropagation()" onchange="event.stopPropagation(); corrigerGenreRapide('${p.id}', this.value)" style="margin-top:6px; width:100%; font-size:11px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:3px 4px;">
