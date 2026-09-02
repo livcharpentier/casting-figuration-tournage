@@ -1870,6 +1870,7 @@ async function generateTrombinoscopePortraits() {
         <div class="details">
           ${p.taille_cm ? "Taille: " + p.taille_cm + " cm<br>" : ""}
           ${p.age ? "Âge: " + p.age + " ans<br>" : ""}
+          ${p.adresse ? "Habite: " + esc(p.adresse) + "<br>" : ""}
           ${p.metier ? "Métier: " + esc(p.metier) + "<br>" : ""}
           ${p.permis_conduire ? "Permis: " + (p.types_permis || "oui") + "<br>" : ""}
           ${p.telephone ? "Tél: " + esc(p.telephone) : ""}
@@ -1935,6 +1936,7 @@ function genererImpressionTrombinoscope(mode) {
         ${p.email ? `<div class="ligne">Mail : ${esc(p.email)}</div>` : ""}
         ${p.taille_cm ? `<div class="ligne">Taille : ${p.taille_cm} cm</div>` : ""}
         ${p.age ? `<div class="ligne">Âge : ${p.age} ans</div>` : ""}
+        ${p.adresse ? `<div class="ligne">Habite : ${esc(p.adresse)}</div>` : ""}
         ${p.metier ? `<div class="ligne">Profession : ${esc(p.metier)}</div>` : ""}
         ${p.permis_conduire ? `<div class="ligne">Permis : ${esc(p.types_permis || "oui")}</div>` : ""}
         ${p.experience_parcours ? `<div class="ligne parcours">${esc(p.experience_parcours.slice(0, 110))}${p.experience_parcours.length > 110 ? "…" : ""}</div>` : ""}
