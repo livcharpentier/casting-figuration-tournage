@@ -623,6 +623,45 @@ document.getElementById("btn-deviner-genre").addEventListener("click", async () 
 
 document.getElementById("btn-new-personne").addEventListener("click", () => openPersonneModal(null));
 
+document.getElementById("btn-recuperer-villes").addEventListener("click", async () => {
+  const status = document.getElementById("deviner-genre-status");
+  const aTraiter = state.personnes.filter((p) => !p.adresse && p.notes && p.notes.trim());
+  if (!aTraiter.length) { status.textContent = "Aucune fiche à corriger : tout le monde a déjà une adresse, ou n'a pas de notes."; return; }
+
+  if (!confirm(`${aTraiter.length} personne(s) sans adresse mais avec des notes. Chercher automatiquement une ville dans leurs notes et la mettre dans le champ Adresse ?`)) return;
+
+  const TAILLE_PAQUET = 50;
+  const nbPaquets = Math.ceil(aTraiter.length / TAILLE_PAQUET);
+  let totalCorrigees = 0;
+
+  for (let p = 0; p < nbPaquets; p++) {
+    const debut = p * TAILLE_PAQUET;
+    const fin = Math.min(debut + TAILLE_PAQUET, aTraiter.length);
+    const paquet = aTraiter.slice(debut, fin);
+    status.innerHTML = `<span class="spinner"></span> Analyse : ${debut + 1} à ${fin} sur ${aTraiter.length}...`;
+
+    const texte = paquet.map((per, i) => `${i} | ${per.notes}`).join("\n");
+    try {
+      const resultats = await callExtractPdtApi({ type: "ville_depuis_notes", texte });
+      for (const r of resultats) {
+        const idx = Number(r.numero);
+        const per = paquet[idx];
+        if (per && r.ville && r.ville.trim()) {
+          await sb.from("personnes").update({ adresse: r.ville.trim() }).eq("id", per.id);
+          per.adresse = r.ville.trim();
+          totalCorrigees++;
+        }
+      }
+    } catch (err) {
+      status.textContent = "Erreur : " + err.message;
+      return;
+    }
+  }
+
+  status.textContent = `${totalCorrigees} adresse(s) récupérée(s) depuis les notes, sur ${aTraiter.length} fiche(s) traitée(s).`;
+  await loadPersonnes();
+});
+
 // ==========================================================
 // IMPORT EN MASSE DEPUIS DES PHOTOS (nom de fichier structuré, sans analyse d'image)
 // ==========================================================
@@ -748,6 +787,7 @@ async function lancerImportMasse() {
         if (!fichExistante.email && r.email) maj.email = r.email;
         if (!fichExistante.photo_annee && r.photo_annee) maj.photo_annee = r.photo_annee;
         if (!fichExistante.genre && r.genre) maj.genre = r.genre;
+        if (!fichExistante.adresse && r.adresse) maj.adresse = r.adresse;
         await sb.from("personnes").update(maj).eq("id", fichExistante.id);
         Object.assign(fichExistante, maj);
         rattachees++;
@@ -763,6 +803,7 @@ async function lancerImportMasse() {
           email: r.email || null,
           photo_url,
           photo_annee: r.photo_annee || null,
+          adresse: r.adresse || null,
           notes: r.notes || null,
         });
         reussies++;
