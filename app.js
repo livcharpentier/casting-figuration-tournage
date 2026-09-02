@@ -48,18 +48,13 @@ function esc(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// Extrait juste "Ville (Département)" à partir d'une adresse complète (si un code postal à 5 chiffres est trouvé),
+// Extrait juste la ville à partir d'une adresse complète (si un code postal à 5 chiffres est trouvé),
 // pour un affichage plus compact sur les cartes. Sinon, renvoie l'adresse telle quelle.
 function extraireVilleDepartement(adresse) {
   if (!adresse) return "";
   const m = adresse.match(/(\d{5})\s+([^\d,]+?)\s*$/);
   if (!m) return adresse;
-  const codePostal = m[1];
-  const ville = m[2].trim();
-  let dept = codePostal.slice(0, 2);
-  if (dept === "20") dept = Number(codePostal) < 20200 ? "2A" : "2B";
-  else if (dept === "97" || dept === "98") dept = codePostal.slice(0, 3);
-  return `${ville} (${dept})`;
+  return m[2].trim();
 }
 function openModal(html) {
   const overlay = document.getElementById("modal-overlay");
