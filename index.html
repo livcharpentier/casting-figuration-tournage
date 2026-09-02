@@ -246,6 +246,7 @@
         <option value="enfants">Enfants (3 mois à 15 ans)</option>
         <option value="ados">Ados (16-17 ans)</option>
       </select>
+      <input type="number" id="filter-annee-photo-max" placeholder="Photos ≤ année (ex 2021)" style="width:170px;">
       <button class="btn secondary" id="btn-deviner-genre">Deviner le genre automatiquement</button>
       <button class="btn secondary" id="btn-import-masse">Import en masse depuis des photos</button>
       <input type="file" id="import-masse-input" accept="image/*" multiple style="display:none;">
@@ -253,6 +254,7 @@
       <button class="btn" id="btn-new-personne">+ Ajouter une personne</button>
     </div>
     <div id="personnes-total-count" style="font-size:13px; color:var(--text); font-weight:700; margin-bottom:10px;"></div>
+    <div id="renouvellement-panel" style="display:none; margin-bottom:10px;"></div>
     <div id="deviner-genre-status" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;"></div>
     <div id="import-masse-status" style="font-size:13px; color:var(--text-muted); margin-bottom:10px;"></div>
     <div id="import-masse-review" style="display:none; margin-bottom:16px;"></div>
