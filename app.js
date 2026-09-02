@@ -225,6 +225,8 @@ function renderPersonnesGrid() {
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" : ""}</div>
         ${p.adresse ? `<div class="meta">${esc(extraireVilleDepartement(p.adresse))}</div>` : ""}
+        ${p.telephone ? `<div class="meta"><a href="tel:${esc(p.telephone.replace(/\s/g, ""))}" onclick="event.stopPropagation()" style="color:var(--accent);">📞 ${esc(p.telephone)}</a></div>` : ""}
+        ${p.email ? `<div class="meta" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><a href="mailto:${esc(p.email)}" onclick="event.stopPropagation()" style="color:var(--accent);">✉️ ${esc(p.email)}</a></div>` : ""}
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
         <div style="margin-top:4px;">${photoDateBadgeHtml(p.photo_annee)}</div>
         <select onclick="event.stopPropagation()" onchange="event.stopPropagation(); corrigerGenreRapide('${p.id}', this.value)" style="margin-top:6px; width:100%; font-size:11px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:3px 4px;">
