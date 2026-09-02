@@ -111,7 +111,8 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
     "telephone": "",           // reconstitue proprement (ex "06_67_76_22_17" → "06 67 76 22 17")
     "email": "",               // reconstitue proprement (underscores → "@" et "." ; ex "jean_dupont_hotmail_fr" → "jean.dupont@hotmail.fr")
     "photo_annee": null,       // année de la photo (nombre), généralement en toute fin de nom de fichier
-    "notes": ""                // toute info utile non casée ailleurs : ville/lieu mentionné, "pratique le théâtre", "a un agent", "a un site", "a une bande démo", etc. Une ligne par info si plusieurs, séparées par " ; ".
+    "adresse": "",              // IMPORTANT : ville/lieu de résidence mentionné dans le nom de fichier (ex "EVRY"), à mettre ICI et pas dans "notes"
+    "notes": ""                // toute autre info utile non casée ailleurs : "pratique le théâtre", "a un agent", "a un site", "a une bande démo", etc. Une ligne par info si plusieurs, séparées par " ; ".
   }
 ]
 Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter. Ne pas inventer d'information absente du nom de fichier.`;
@@ -145,8 +146,19 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Traite absolument tous les blocs fournis, dans l'ordre, sans en sauter. Ne pas inventer d'information absente du texte.`;
+    } else if (type === 'ville_depuis_notes') {
+      contextText = `Voici des notes libres écrites sur des fiches de comédiens/figurants. Il faut repérer si une ville ou un lieu de résidence y est mentionné.`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balises markdown), où chaque élément correspond à une ligne numérotée, avec exactement ces clés :
+[
+  {
+    "numero": "",   // le numéro exact indiqué devant chaque ligne
+    "ville": ""     // la ville/lieu de résidence mentionné dans ces notes, s'il y en a un clairement identifiable (ex "Bagneux", "Evry"). Laisse vide si aucune ville n'est mentionnée ou si ce n'est pas clair. Ne mets qu'un nom de ville, pas de phrase.
+  }
+]
+Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter.`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes', 'import_photos_masse' ou 'import_emails_masse'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes', 'import_photos_masse', 'import_emails_masse' ou 'ville_depuis_notes'." });
       return;
     }
 
