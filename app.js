@@ -36,6 +36,7 @@ let state = {
   contratsPretsAImprimer: [],
   importMasseResultats: [],
   importMailsMasseResultats: [],
+  importMailsMasseFichiers: [],
   currentPrepayeJourId: null,
   currentRecapAdminJourId: null,
 };
@@ -879,6 +880,7 @@ function renderImportMailsMasseReview(resultats) {
   const container = document.getElementById("import-masse-review");
   if (!resultats.length) { container.style.display = "none"; return; }
   container.style.display = "block";
+  state.importMailsMasseFichiers = resultats.map(() => ({ photo: null, cv: null }));
 
   function trouverDoublon(nom, prenom) {
     const n = (nom || "").trim().toLowerCase();
@@ -886,13 +888,22 @@ function renderImportMailsMasseReview(resultats) {
     return state.personnes.find((x) => (x.nom || "").trim().toLowerCase() === n && (x.prenom || "").trim().toLowerCase() === pr);
   }
 
+  function normaliser(txt) {
+    return (txt || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
   container.innerHTML = `
     <div class="filter-panel">
       <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Les doublons potentiels sont décochés par défaut.</div>
+      <div id="mails-masse-dropzone" style="border:1px dashed var(--border); border-radius:8px; padding:14px; margin-bottom:12px; text-align:center;">
+        <div style="font-size:13px; margin-bottom:8px;">Glisse ici (ou clique) <strong>toutes les photos et tous les CV</strong> déjà enregistrés, peu importe l'ordre — l'appli les associe automatiquement à la bonne personne si le nom du fichier contient son nom et prénom.</div>
+        <input type="file" id="mails-masse-fichiers-input" accept="image/*,.pdf" multiple>
+        <div id="mails-masse-fichiers-status" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+      </div>
       <div style="max-height:400px; overflow-y:auto;">
         <table class="role-table">
-          <thead><tr><th><input type="checkbox" id="mails-masse-check-all" checked></th><th>Nom</th><th>Prénom</th><th>Type</th><th>Genre</th><th>Âge</th><th>Taille</th><th>Tél</th><th>Email</th><th>Statut</th></tr></thead>
-          <tbody>
+          <thead><tr><th><input type="checkbox" id="mails-masse-check-all" checked></th><th>Nom</th><th>Prénom</th><th>Type</th><th>Genre</th><th>Âge</th><th>Taille</th><th>Tél</th><th>Email</th><th>Photo</th><th>CV</th><th>Statut</th></tr></thead>
+          <tbody id="mails-masse-tbody">
             ${resultats.map((r, i) => {
               const doublon = trouverDoublon(r.nom, r.prenom);
               return `
@@ -906,6 +917,8 @@ function renderImportMailsMasseReview(resultats) {
                 <td>${r.taille_cm ?? ""}</td>
                 <td>${esc(r.telephone)}</td>
                 <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
+                <td id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted);">—</td>
+                <td id="mails-masse-cv-${i}" style="font-size:11px; color:var(--text-muted);">—</td>
                 <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
               </tr>
             `;
@@ -913,6 +926,7 @@ function renderImportMailsMasseReview(resultats) {
           </tbody>
         </table>
       </div>
+      <div id="mails-masse-non-associes" style="font-size:12px; color:var(--orange); margin-top:8px;"></div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
         <button class="btn secondary" id="btn-mails-masse-annuler">Annuler</button>
         <button class="btn" id="btn-mails-masse-confirmer">Importer les fiches sélectionnées</button>
@@ -924,11 +938,39 @@ function renderImportMailsMasseReview(resultats) {
   });
   document.getElementById("btn-mails-masse-annuler").addEventListener("click", () => { container.style.display = "none"; container.innerHTML = ""; });
   document.getElementById("btn-mails-masse-confirmer").addEventListener("click", lancerImportMailsMasse);
+
+  const dropzone = document.getElementById("mails-masse-dropzone");
+  const fichiersInput = document.getElementById("mails-masse-fichiers-input");
+  enableDragDrop(dropzone, fichiersInput, { append: true });
+  fichiersInput.addEventListener("change", (e) => {
+    const files = Array.from(e.target.files || []);
+    const nonAssocies = [];
+    files.forEach((file) => {
+      const nomFichier = normaliser(file.name);
+      const idx = resultats.findIndex((r) => {
+        const n = normaliser(r.nom);
+        const pr = normaliser(r.prenom);
+        return n && pr && nomFichier.includes(n) && nomFichier.includes(pr);
+      });
+      if (idx === -1) { nonAssocies.push(file.name); return; }
+      if (file.type === "application/pdf") {
+        state.importMailsMasseFichiers[idx].cv = file;
+        document.getElementById(`mails-masse-cv-${idx}`).textContent = "✓ " + file.name;
+      } else if (file.type.startsWith("image/")) {
+        state.importMailsMasseFichiers[idx].photo = file;
+        document.getElementById(`mails-masse-photo-${idx}`).textContent = "✓ " + file.name;
+      }
+    });
+    document.getElementById("mails-masse-fichiers-status").textContent = `${files.length - nonAssocies.length} fichier(s) associé(s) automatiquement.`;
+    const zoneNonAssocies = document.getElementById("mails-masse-non-associes");
+    zoneNonAssocies.textContent = nonAssocies.length ? `Non associés (nom+prénom non trouvé dans le nom de fichier) : ${nonAssocies.join(", ")}` : "";
+  });
 }
 
 async function lancerImportMailsMasse() {
   const resultats = state.importMailsMasseResultats || [];
-  const selectionnes = Array.from(document.querySelectorAll(".mails-masse-row-check:checked")).map((c) => resultats[Number(c.dataset.idx)]);
+  const fichiers = state.importMailsMasseFichiers || [];
+  const selectionnes = Array.from(document.querySelectorAll(".mails-masse-row-check:checked")).map((c) => Number(c.dataset.idx));
   if (!selectionnes.length) { alert("Sélectionne au moins une fiche."); return; }
 
   const status = document.getElementById("import-masse-status");
@@ -938,10 +980,14 @@ async function lancerImportMailsMasse() {
   let echecs = 0;
 
   for (let i = 0; i < selectionnes.length; i++) {
-    const r = selectionnes[i];
+    const idx = selectionnes[i];
+    const r = resultats[idx];
+    const fich = fichiers[idx] || {};
     status.innerHTML = `<span class="spinner"></span> Import en cours : ${i + 1} sur ${selectionnes.length} (${reussies} réussie(s), ${echecs} échec(s))...`;
     try {
-      await sb.from("personnes").insert({
+      let photo_url = null;
+      if (fich.photo) photo_url = await uploadToStorage(fich.photo, "photos");
+      const { data: inserted, error: errInsert } = await sb.from("personnes").insert({
         nom: r.nom || "",
         prenom: r.prenom || "",
         type_personne: ["comedien", "figurant", "comedien_figurant"].includes(r.type_personne) ? r.type_personne : "figurant",
@@ -962,7 +1008,13 @@ async function lancerImportMailsMasse() {
         agence: r.agence || null,
         experience_parcours: r.experience_parcours || null,
         notes: r.notes || null,
-      });
+        photo_url,
+      }).select().single();
+      if (errInsert) throw errInsert;
+      if (fich.cv && inserted) {
+        const cv_url = await uploadToStorage(fich.cv, "documents");
+        await sb.from("documents_personne").insert({ personne_id: inserted.id, type_document: "cv", libelle: fich.cv.name, fichier_url: cv_url });
+      }
       reussies++;
     } catch (err) {
       console.error("Erreur import mail", r.nom, err);
@@ -970,7 +1022,7 @@ async function lancerImportMailsMasse() {
     }
   }
 
-  status.textContent = `Import terminé : ${reussies} fiche(s) créée(s), ${echecs} échec(s). Pense à ajouter les photos individuellement ensuite si besoin.`;
+  status.textContent = `Import terminé : ${reussies} fiche(s) créée(s), ${echecs} échec(s).`;
   document.getElementById("import-masse-review").style.display = "none";
   document.getElementById("import-masse-review").innerHTML = "";
   state.importMailsMasseResultats = [];
