@@ -64,6 +64,7 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "types_permis": "",          // ex "B, moto"
   "langues": "",
   "competences_particulieres": "", // danse, chant, sport, instrument, cascade...
+  "signes_particuliers": "",       // tatouages, cicatrices, petite taille, physique atypique/patibulaire, ou tout signe distinctif visible mentionné
   "metier": "",                // métier réel de la personne dans la vie civile s'il est mentionné (ex infirmier, pompier, policier, parachutiste, militaire...), utile pour caster des rôles nécessitant un vrai savoir-faire ou une vraie expérience professionnelle
   "lien_instagram": "",        // lien vers le profil Instagram s'il est mentionné (ou un identifiant du type @pseudo à transformer en https://instagram.com/pseudo)
   "lien_showreel": "",         // lien vers une bande démo / YouTube / Vimeo (jamais Instagram ni un site perso ici)
