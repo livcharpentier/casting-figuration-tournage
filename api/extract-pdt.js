@@ -142,6 +142,12 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
     "lien_site_web": "",
     "agence": "",
     "experience_parcours": "",       // théâtre, tournages, formations mentionnés (une ligne par expérience, séparées par des retours à la ligne réels dans la chaîne)
+    "parent_nom": "",                // si la personne est mineure et qu'un parent/tuteur écrit ou est mentionné, remplis ces champs
+    "parent_prenom": "",
+    "parent_telephone": "",
+    "parent_email": "",
+    "parent_profession": "",
+    "parent_notes": "",
     "notes": ""                      // toute autre info utile
   }
 ]
