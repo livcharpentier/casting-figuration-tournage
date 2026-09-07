@@ -359,6 +359,7 @@ async function openFicheModal(id) {
         ${infoLine("Permis", p.permis_conduire ? (p.types_permis || "Oui") : "")}
         ${infoLine("Langues", p.langues)}
         ${infoLine("Compétences", p.competences_particulieres)}
+        ${infoLine("Signes particuliers", p.signes_particuliers)}
       </div>
     </fieldset>
 
@@ -1156,6 +1157,9 @@ function personneFormFields(p = {}) {
       <div class="field"><label>Métier réel (si utile pour un rôle : infirmier, pompier, policier, parachutiste...)</label><input type="text" id="f-metier" value="${esc(p.metier)}" placeholder="ex infirmier, pompier, policier, parachutiste..."></div>
       <div class="field"><label>Compétences particulières</label><input type="text" id="f-competences" value="${esc(p.competences_particulieres)}" placeholder="danse, chant, sport, cascade..."></div>
     </div>
+    <div class="field-row">
+      <div class="field" style="flex:1;"><label>Signes particuliers</label><input type="text" id="f-signes-particuliers" value="${esc(p.signes_particuliers)}" placeholder="ex tatouages, cicatrices, petite taille, physique atypique/patibulaire..."></div>
+    </div>
   </fieldset>
 
   <fieldset>
@@ -1614,6 +1618,7 @@ async function analyserFichiers(files) {
     if (d.permis_conduire) document.getElementById("f-permis").checked = true;
     setVal("f-types-permis", d.types_permis); setVal("f-langues", d.langues);
     setVal("f-competences", d.competences_particulieres);
+    setVal("f-signes-particuliers", d.signes_particuliers);
     setVal("f-metier", d.metier);
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
     setVal("f-instagram", d.lien_instagram); setVal("f-lien-agent", d.lien_agent);
@@ -1724,6 +1729,7 @@ async function savePersonne() {
     telephone: val("f-tel"), email: val("f-email"), adresse: val("f-adresse"),
     permis_conduire: document.getElementById("f-permis").checked, types_permis: val("f-types-permis"),
     langues: val("f-langues"), competences_particulieres: val("f-competences"), metier: val("f-metier"),
+    signes_particuliers: val("f-signes-particuliers"),
     lien_showreel: val("f-showreel"), lien_site_web: val("f-site"), agence: val("f-agence"),
     lien_instagram: val("f-instagram"), lien_agent: val("f-lien-agent"),
     experience_parcours: val("f-experience"),
@@ -1963,7 +1969,7 @@ async function generateTrombinoscopePortraits() {
       const champs = [
         p.nom, p.prenom, p.metier, p.competences_particulieres, p.langues,
         p.morphologie, p.couleur_yeux, p.couleur_cheveux, p.notes,
-        p.experience_parcours, p.agence, p.adresse, p.types_permis,
+        p.experience_parcours, p.agence, p.adresse, p.types_permis, p.signes_particuliers,
       ];
       return champs.some((c) => (c || "").toLowerCase().includes(rechercheLibre));
     });
