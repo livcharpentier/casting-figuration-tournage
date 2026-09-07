@@ -51,6 +51,16 @@ function esc(str) {
 
 // Extrait juste la ville à partir d'une adresse complète (si un code postal à 5 chiffres est trouvé),
 // pour un affichage plus compact sur les cartes. Sinon, renvoie l'adresse telle quelle.
+// Calcule l'âge probable AUJOURD'HUI à partir de l'âge enregistré et de l'année de la photo
+// (utile pour les enfants, dont l'âge change vite — permet de repérer une photo à mettre à jour).
+function ageEstimeAujourdhuiTexte(p) {
+  if (!p.age || !p.photo_annee) return "";
+  const anneeActuelle = new Date().getFullYear();
+  const ecart = anneeActuelle - p.photo_annee;
+  if (ecart <= 0) return "";
+  return ` (≈${p.age + ecart} ans en ${anneeActuelle})`;
+}
+
 function extraireVilleDepartement(adresse) {
   if (!adresse) return "";
   const m = adresse.match(/(\d{5})\s+([^\d,]+?)\s*$/);
@@ -224,7 +234,7 @@ function renderPersonnesGrid() {
       <div class="photo" style="${p.photo_url ? `background-image:url('${esc(p.photo_url)}')` : ""}">${p.photo_url ? "" : ""}</div>
       <div class="info">
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
-        <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" : ""}</div>
+        <div class="meta">${p.taille_cm ? p.taille_cm + " cm" : ""} ${p.age ? "· " + p.age + " ans" + esc(ageEstimeAujourdhuiTexte(p)) : ""}</div>
         ${p.adresse ? `<div class="meta">${esc(extraireVilleDepartement(p.adresse))}</div>` : ""}
         ${p.telephone ? `<div class="meta"><a href="tel:${esc(p.telephone.replace(/\s/g, ""))}" onclick="event.stopPropagation()" style="color:var(--accent);">${esc(p.telephone)}</a></div>` : ""}
         ${p.email ? `<div class="meta" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><a href="mailto:${esc(p.email)}" onclick="event.stopPropagation()" style="color:var(--accent);">${esc(p.email)}</a></div>` : ""}
@@ -298,7 +308,7 @@ async function openFicheModal(id) {
           ${photoDateBadge}
         </div>
         <div style="margin-top:10px; font-size:13px; color:var(--text);">
-          ${p.taille_cm ? "Taille : " + p.taille_cm + " cm &nbsp;·&nbsp; " : ""}${p.age ? "Âge : " + p.age + " ans" : ""}
+          ${p.taille_cm ? "Taille : " + p.taille_cm + " cm &nbsp;·&nbsp; " : ""}${p.age ? "Âge : " + p.age + " ans" + esc(ageEstimeAujourdhuiTexte(p)) : ""}
           ${p.metier ? `<br>Métier : ${esc(p.metier)}` : ""}
           ${p.telephone ? `<br>Tél : ${esc(p.telephone)}` : ""}
           ${p.email ? `<br>Email : ${esc(p.email)}` : ""}
@@ -381,6 +391,18 @@ async function openFicheModal(id) {
         </div>` : `<div style="color:var(--text-muted); font-size:13px;">Aucun document (CV, démo...) ajouté.</div>`}
     </fieldset>
 
+    ${(p.parent_nom || p.parent_prenom || p.parent_telephone || p.parent_email || p.parent_profession || p.parent_notes) ? `
+    <fieldset>
+      <legend>Parent / tuteur</legend>
+      <div style="font-size:13px;">
+        ${p.parent_prenom || p.parent_nom ? `${esc(p.parent_prenom)} ${esc(p.parent_nom)}<br>` : ""}
+        ${p.parent_telephone ? `Tél : ${esc(p.parent_telephone)}<br>` : ""}
+        ${p.parent_email ? `Email : ${esc(p.parent_email)}<br>` : ""}
+        ${p.parent_profession ? `Profession : ${esc(p.parent_profession)}<br>` : ""}
+        ${p.parent_notes ? `<span style="white-space:pre-line;">${esc(p.parent_notes)}</span>` : ""}
+      </div>
+    </fieldset>` : ""}
+
     ${p.notes ? `
     <fieldset>
       <legend>Notes</legend>
@@ -421,7 +443,7 @@ function buildFicheSummaryText(p, documents) {
   lines.push(`${p.prenom} ${p.nom}`);
   lines.push(p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien + figurant");
   if (p.taille_cm) lines.push(`Taille : ${p.taille_cm} cm`);
-  if (p.age) lines.push(`Âge : ${p.age} ans`);
+  if (p.age) lines.push(`Âge : ${p.age} ans${ageEstimeAujourdhuiTexte(p)}`);
   if (p.metier) lines.push(`Métier : ${p.metier}`);
   if (p.telephone) lines.push(`Tél : ${p.telephone}`);
   if (p.email) lines.push(`Email : ${p.email}`);
@@ -1007,6 +1029,12 @@ async function lancerImportMailsMasse() {
         lien_site_web: r.lien_site_web || null,
         agence: r.agence || null,
         experience_parcours: r.experience_parcours || null,
+        parent_nom: r.parent_nom || null,
+        parent_prenom: r.parent_prenom || null,
+        parent_telephone: r.parent_telephone || null,
+        parent_email: r.parent_email || null,
+        parent_profession: r.parent_profession || null,
+        parent_notes: r.parent_notes || null,
         notes: r.notes || null,
         photo_url,
       }).select().single();
@@ -1168,6 +1196,22 @@ function personneFormFields(p = {}) {
       <div class="field"><label>IBAN</label><input type="text" id="f-iban" value="${esc(p.iban)}" placeholder="FR76 ..."></div>
       <div class="field"><label>BIC</label><input type="text" id="f-bic" value="${esc(p.bic)}"></div>
       <div class="field"><label>Titulaire du compte (si différent)</label><input type="text" id="f-titulaire-rib" value="${esc(p.titulaire_rib)}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Infos du parent / tuteur (pour les mineurs)</legend>
+    <div class="field-row">
+      <div class="field"><label>Nom du parent</label><input type="text" id="f-parent-nom" value="${esc(p.parent_nom)}"></div>
+      <div class="field"><label>Prénom du parent</label><input type="text" id="f-parent-prenom" value="${esc(p.parent_prenom)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Téléphone du parent</label><input type="text" id="f-parent-telephone" value="${esc(p.parent_telephone)}"></div>
+      <div class="field"><label>Email du parent</label><input type="text" id="f-parent-email" value="${esc(p.parent_email)}"></div>
+      <div class="field"><label>Profession du parent</label><input type="text" id="f-parent-profession" value="${esc(p.parent_profession)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex:1;"><label>Autres infos sur le parent</label><textarea id="f-parent-notes" style="width:100%; min-height:40px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px;">${esc(p.parent_notes)}</textarea></div>
     </div>
   </fieldset>
 
@@ -1574,6 +1618,8 @@ async function analyserFichiers(files) {
     setVal("f-showreel", d.lien_showreel); setVal("f-site", d.lien_site_web); setVal("f-agence", d.agence);
     setVal("f-instagram", d.lien_instagram); setVal("f-lien-agent", d.lien_agent);
     setVal("f-iban", d.iban); setVal("f-bic", d.bic); setVal("f-titulaire-rib", d.titulaire_rib);
+    setVal("f-parent-nom", d.parent_nom); setVal("f-parent-prenom", d.parent_prenom); setVal("f-parent-telephone", d.parent_telephone);
+    setVal("f-parent-email", d.parent_email); setVal("f-parent-profession", d.parent_profession); setVal("f-parent-notes", d.parent_notes);
     setVal("f-experience", d.experience_parcours);
     setVal("f-notes", d.notes);
     // Reprendre automatiquement la 1ère photo comme photo principale
@@ -1685,6 +1731,8 @@ async function savePersonne() {
     situation_familiale: val("f-situation-familiale"), nb_enfants_charge: val("f-nb-enfants"), nom_jeune_fille: val("f-nom-jeune-fille"),
     centre_secu_sociale: val("f-centre-secu"), personne_a_prevenir: val("f-personne-prevenir"),
     iban: val("f-iban"), bic: val("f-bic"), titulaire_rib: val("f-titulaire-rib"),
+    parent_nom: val("f-parent-nom"), parent_prenom: val("f-parent-prenom"), parent_telephone: val("f-parent-telephone"),
+    parent_email: val("f-parent-email"), parent_profession: val("f-parent-profession"), parent_notes: val("f-parent-notes"),
     photo_annee: num("f-photo-annee"), notes: val("f-notes"),
     updated_at: new Date().toISOString(),
   };
@@ -1960,7 +2008,7 @@ async function generateTrombinoscopePortraits() {
         <div class="name">${esc(p.prenom)} ${esc(p.nom)}</div>
         <div class="details">
           ${p.taille_cm ? "Taille: " + p.taille_cm + " cm<br>" : ""}
-          ${p.age ? "Âge: " + p.age + " ans<br>" : ""}
+          ${p.age ? "Âge: " + p.age + " ans" + esc(ageEstimeAujourdhuiTexte(p)) + "<br>" : ""}
           ${p.adresse ? "Habite: " + esc(p.adresse) + "<br>" : ""}
           ${p.metier ? "Métier: " + esc(p.metier) + "<br>" : ""}
           ${p.permis_conduire ? "Permis: " + (p.types_permis || "oui") + "<br>" : ""}
@@ -2026,7 +2074,7 @@ function genererImpressionTrombinoscope(mode) {
         ${p.telephone ? `<div class="ligne">Tél : ${esc(p.telephone)}</div>` : ""}
         ${p.email ? `<div class="ligne">Mail : ${esc(p.email)}</div>` : ""}
         ${p.taille_cm ? `<div class="ligne">Taille : ${p.taille_cm} cm</div>` : ""}
-        ${p.age ? `<div class="ligne">Âge : ${p.age} ans</div>` : ""}
+        ${p.age ? `<div class="ligne">Âge : ${p.age} ans${esc(ageEstimeAujourdhuiTexte(p))}</div>` : ""}
         ${p.adresse ? `<div class="ligne">Habite : ${esc(p.adresse)}</div>` : ""}
         ${p.metier ? `<div class="ligne">Profession : ${esc(p.metier)}</div>` : ""}
         ${p.permis_conduire ? `<div class="ligne">Permis : ${esc(p.types_permis || "oui")}</div>` : ""}
