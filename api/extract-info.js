@@ -73,6 +73,12 @@ Renvoie UNIQUEMENT un objet JSON valide (rien avant, rien après, pas de balises
   "iban": "",                   // IBAN si un RIB est présent dans le document/image (format FR76 ...)
   "bic": "",                    // BIC/SWIFT si présent
   "titulaire_rib": "",          // nom du titulaire du compte tel qu'indiqué sur le RIB, si différent du nom de la personne
+  "parent_nom": "",              // si la personne est mineure et qu'un parent/tuteur écrit ou est mentionné (nom, téléphone, mail, profession du parent), remplis ces champs
+  "parent_prenom": "",
+  "parent_telephone": "",
+  "parent_email": "",
+  "parent_profession": "",
+  "parent_notes": "",            // autres infos utiles sur le parent/tuteur non casées ailleurs
   "experience_parcours": "",   // liste des expériences pertinentes trouvées : pièces de théâtre, tournages/films/séries, formations/écoles de comédie, avec dates si mentionnées. Une ligne par expérience (séparées par \\n). Ne pas résumer, garder les intitulés précis (titre, rôle, année, structure).
   "notes": ""                  // toute info utile qui ne rentre pas ailleurs
 }`;
