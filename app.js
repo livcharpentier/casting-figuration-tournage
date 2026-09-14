@@ -964,11 +964,13 @@ function ajouterBlocMail() {
       <div style="flex:1; min-width:170px;">
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Photo(s) — glisse-en une ou plusieurs, ou clique ici puis Ctrl+V (Cmd+V) après avoir "copié l'image" dans le mail, sans rien enregistrer sur l'ordinateur</div>
         <div class="bloc-photo-collage" tabindex="0" style="border:1px dashed var(--border); border-radius:6px; padding:8px; text-align:center; font-size:11px; color:var(--text-muted); cursor:text; min-height:34px;">Clique ici puis Ctrl+V (ou glisse un ou plusieurs fichiers)</div>
+        <div class="bloc-photos-liste" style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;"></div>
         <input type="file" class="bloc-photo" accept="image/*" multiple style="display:none;">
       </div>
       <div style="flex:1; min-width:150px;">
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV (facultatif — pas grave si tu ne l'as pas)</div>
         <input type="file" class="bloc-cv" accept=".pdf">
+        <button type="button" class="bloc-cv-retirer" style="display:none; background:none; border:none; color:var(--red); cursor:pointer; font-size:11px; padding:2px 0;">✕ Retirer ce CV</button>
       </div>
       <div style="min-width:110px;">
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Année du mail</div>
@@ -978,6 +980,17 @@ function ajouterBlocMail() {
   `;
   container.appendChild(div);
   div.querySelector(".bloc-supprimer").addEventListener("click", () => div.remove());
+
+  // Retirer le CV sélectionné par erreur
+  const inputCv = div.querySelector(".bloc-cv");
+  const btnRetirerCv = div.querySelector(".bloc-cv-retirer");
+  inputCv.addEventListener("change", () => {
+    btnRetirerCv.style.display = inputCv.files && inputCv.files.length ? "block" : "none";
+  });
+  btnRetirerCv.addEventListener("click", () => {
+    inputCv.value = "";
+    btnRetirerCv.style.display = "none";
+  });
 
   // Reprend automatiquement l'année du lot déjà saisie en haut de la fenêtre, si elle existe
   const anneeGlobale = document.getElementById("annee-mail-globale");
@@ -989,16 +1002,32 @@ function ajouterBlocMail() {
   const zoneCollage = div.querySelector(".bloc-photo-collage");
   const inputPhoto = div.querySelector(".bloc-photo");
   let photosAccumulees = [];
+  const listePhotos = div.querySelector(".bloc-photos-liste");
   const rafraichirAffichagePhotos = () => {
     if (!photosAccumulees.length) {
       zoneCollage.textContent = "Clique ici puis Ctrl+V (ou glisse un ou plusieurs fichiers)";
       zoneCollage.style.color = "var(--text-muted)";
       zoneCollage.style.borderColor = "var(--border)";
+      listePhotos.innerHTML = "";
+      inputPhoto.value = "";
       return;
     }
-    zoneCollage.textContent = `✓ ${photosAccumulees.length} photo(s) : ${photosAccumulees.map((f) => f.name || "image collée").join(", ")}`;
+    zoneCollage.textContent = `✓ ${photosAccumulees.length} photo(s) ajoutée(s) — vérifie ci-dessous et retire celles en trop`;
     zoneCollage.style.color = "var(--accent)";
     zoneCollage.style.borderColor = "var(--accent)";
+    listePhotos.innerHTML = photosAccumulees.map((f, i) => `
+      <span style="display:inline-flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:5px; padding:2px 6px; font-size:11px;">
+        ${esc(f.name || "image collée")}
+        <button type="button" class="bloc-photo-retirer" data-photo-idx="${i}" style="background:none; border:none; color:var(--red); cursor:pointer; font-weight:700; padding:0 2px;">✕</button>
+      </span>
+    `).join("");
+    listePhotos.querySelectorAll(".bloc-photo-retirer").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        photosAccumulees.splice(Number(btn.dataset.photoIdx), 1);
+        rafraichirAffichagePhotos();
+      });
+    });
     const dt = new DataTransfer();
     photosAccumulees.forEach((f) => dt.items.add(f));
     inputPhoto.files = dt.files;
@@ -1151,10 +1180,12 @@ function renderImportMailsMasseReview(resultats) {
                 <td style="min-width:110px;">
                   <input type="file" class="mails-masse-photo-input" data-idx="${i}" accept="image/*" multiple style="max-width:100px; font-size:10px;">
                   <div id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].photos && state.importMailsMasseFichiers[i].photos.length ? "✓ " + state.importMailsMasseFichiers[i].photos.length + " photo(s)" : "—"}</div>
+                  ${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].photos && state.importMailsMasseFichiers[i].photos.length ? `<button type="button" class="mails-masse-photo-vider" data-idx="${i}" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:10px; padding:0;">✕ retirer</button>` : ""}
                 </td>
                 <td style="min-width:110px;">
                   <input type="file" class="mails-masse-cv-input" data-idx="${i}" accept=".pdf" style="max-width:100px; font-size:10px;">
                   <div id="mails-masse-cv-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].cv ? "✓ " + esc(state.importMailsMasseFichiers[i].cv.name) : "—"}</div>
+                  ${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].cv ? `<button type="button" class="mails-masse-cv-vider" data-idx="${i}" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:10px; padding:0;">✕ retirer</button>` : ""}
                 </td>
                 <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
               </tr>
@@ -1221,6 +1252,21 @@ function renderImportMailsMasseReview(resultats) {
       if (!file) return;
       state.importMailsMasseFichiers[idx].cv = file;
       document.getElementById(`mails-masse-cv-${idx}`).textContent = "✓ " + file.name;
+    });
+  });
+
+  document.querySelectorAll(".mails-masse-photo-vider").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      state.importMailsMasseFichiers[idx].photos = [];
+      renderImportMailsMasseReview(state.importMailsMasseResultats);
+    });
+  });
+  document.querySelectorAll(".mails-masse-cv-vider").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      state.importMailsMasseFichiers[idx].cv = null;
+      renderImportMailsMasseReview(state.importMailsMasseResultats);
     });
   });
 }
