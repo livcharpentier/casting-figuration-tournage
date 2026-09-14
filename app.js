@@ -908,12 +908,13 @@ function ajouterBlocMail() {
     </div>
     <textarea class="bloc-texte-mail" placeholder="Colle ici le texte du mail de cette personne..." style="width:100%; min-height:90px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px;"></textarea>
     <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:150px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Photo</div>
-        <input type="file" class="bloc-photo" accept="image/*">
+      <div style="flex:1; min-width:170px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Photo — clique ici puis fais Ctrl+V (Cmd+V) juste après avoir "copié l'image" dans le mail (clic droit sur la photo → Copier l'image), sans l'enregistrer sur l'ordinateur</div>
+        <div class="bloc-photo-collage" tabindex="0" style="border:1px dashed var(--border); border-radius:6px; padding:8px; text-align:center; font-size:11px; color:var(--text-muted); cursor:text; min-height:34px;">Clique ici puis Ctrl+V (ou glisse un fichier)</div>
+        <input type="file" class="bloc-photo" accept="image/*" style="display:none;">
       </div>
       <div style="flex:1; min-width:150px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV (fichier depuis l'ordinateur)</div>
         <input type="file" class="bloc-cv" accept=".pdf">
       </div>
       <div style="min-width:150px;">
@@ -924,6 +925,37 @@ function ajouterBlocMail() {
   `;
   container.appendChild(div);
   div.querySelector(".bloc-supprimer").addEventListener("click", () => div.remove());
+
+  // Collage direct d'une image copiée depuis le mail (Ctrl+V), sans passer par le disque dur
+  const zoneCollage = div.querySelector(".bloc-photo-collage");
+  const inputPhoto = div.querySelector(".bloc-photo");
+  const afficherPhotoCollee = (file) => {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    inputPhoto.files = dt.files;
+    zoneCollage.textContent = "✓ Photo collée : " + (file.name || "image du presse-papier");
+    zoneCollage.style.color = "var(--accent)";
+    zoneCollage.style.borderColor = "var(--accent)";
+  };
+  zoneCollage.addEventListener("click", () => zoneCollage.focus());
+  zoneCollage.addEventListener("paste", (e) => {
+    const items = e.clipboardData ? e.clipboardData.items : [];
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) { afficherPhotoCollee(file); e.preventDefault(); return; }
+      }
+    }
+    zoneCollage.textContent = "Aucune image trouvée dans le presse-papier — vérifie que tu as bien fait \"Copier l'image\" (pas juste sélectionner le texte).";
+  });
+  enableDragDrop(zoneCollage, inputPhoto);
+  inputPhoto.addEventListener("change", () => {
+    if (inputPhoto.files[0]) {
+      zoneCollage.textContent = "✓ " + inputPhoto.files[0].name;
+      zoneCollage.style.color = "var(--accent)";
+      zoneCollage.style.borderColor = "var(--accent)";
+    }
+  });
 }
 
 async function analyserMailsMasse() {
