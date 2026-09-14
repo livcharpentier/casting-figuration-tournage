@@ -947,7 +947,7 @@ function renderImportMailsMasseReview(resultats) {
     <div class="filter-panel">
       <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Vérifie la liste avant d'importer. Les doublons potentiels sont décochés par défaut.</div>
       <div id="mails-masse-dropzone" style="border:1px dashed var(--border); border-radius:8px; padding:14px; margin-bottom:12px; text-align:center;">
-        <div style="font-size:13px; margin-bottom:8px;">Glisse ici (ou clique) <strong>toutes les photos et tous les CV</strong> déjà enregistrés, peu importe l'ordre — l'appli les associe automatiquement à la bonne personne si le nom du fichier contient son nom et prénom.</div>
+        <div style="font-size:13px; margin-bottom:8px;">Glisse ici (ou clique) <strong>toutes les photos et tous les CV</strong> dont le nom de fichier contient le nom et prénom de la personne — l'appli les associe automatiquement à la bonne ligne. <strong>Si un fichier n'a pas de nom dessus</strong>, pas de souci : choisis-le directement dans la case "Photo" ou "CV" de la ligne correspondante, dans le tableau ci-dessous.</div>
         <input type="file" id="mails-masse-fichiers-input" accept="image/*,.pdf" multiple>
         <div id="mails-masse-fichiers-status" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
       </div>
@@ -968,8 +968,14 @@ function renderImportMailsMasseReview(resultats) {
                 <td>${r.taille_cm ?? ""}</td>
                 <td>${esc(r.telephone)}</td>
                 <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
-                <td id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted);">—</td>
-                <td id="mails-masse-cv-${i}" style="font-size:11px; color:var(--text-muted);">—</td>
+                <td style="min-width:110px;">
+                  <input type="file" class="mails-masse-photo-input" data-idx="${i}" accept="image/*" style="max-width:100px; font-size:10px;">
+                  <div id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">—</div>
+                </td>
+                <td style="min-width:110px;">
+                  <input type="file" class="mails-masse-cv-input" data-idx="${i}" accept=".pdf" style="max-width:100px; font-size:10px;">
+                  <div id="mails-masse-cv-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">—</div>
+                </td>
                 <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
               </tr>
             `;
@@ -1015,6 +1021,27 @@ function renderImportMailsMasseReview(resultats) {
     document.getElementById("mails-masse-fichiers-status").textContent = `${files.length - nonAssocies.length} fichier(s) associé(s) automatiquement.`;
     const zoneNonAssocies = document.getElementById("mails-masse-non-associes");
     zoneNonAssocies.textContent = nonAssocies.length ? `Non associés (nom+prénom non trouvé dans le nom de fichier) : ${nonAssocies.join(", ")}` : "";
+  });
+
+  // Sélection manuelle photo/CV directement sur la ligne d'une personne
+  // (utile quand le fichier n'a pas de nom dessus : l'association se fait par la ligne, pas par le nom du fichier)
+  document.querySelectorAll(".mails-masse-photo-input").forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const idx = Number(input.dataset.idx);
+      const file = e.target.files[0];
+      if (!file) return;
+      state.importMailsMasseFichiers[idx].photo = file;
+      document.getElementById(`mails-masse-photo-${idx}`).textContent = "✓ " + file.name;
+    });
+  });
+  document.querySelectorAll(".mails-masse-cv-input").forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const idx = Number(input.dataset.idx);
+      const file = e.target.files[0];
+      if (!file) return;
+      state.importMailsMasseFichiers[idx].cv = file;
+      document.getElementById(`mails-masse-cv-${idx}`).textContent = "✓ " + file.name;
+    });
   });
 }
 
