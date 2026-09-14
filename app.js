@@ -925,6 +925,11 @@ document.getElementById("btn-import-mails-masse").addEventListener("click", () =
     <span class="close-x" onclick="closeModalAvecConfirmation()">×</span>
     <h2>Import en masse depuis des mails collés</h2>
     <p style="font-size:13px; color:var(--text-muted);">Pour chaque personne : colle le texte de son mail, glisse sa photo et son CV, et indique la date du mail (sert à dater sa photo si le nom de fichier ne le dit pas déjà). Clique <strong>"+ Ajouter une autre personne"</strong> pour enchaîner sans tout analyser à chaque fois, puis <strong>"Analyser tout"</strong> une fois que tu as fini.</p>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:10px 12px; margin-bottom:14px;">
+      <label style="font-size:13px; white-space:nowrap;"><strong>Année du lot</strong> (si tous ces mails datent de la même année) :</label>
+      <input type="number" id="annee-mail-globale" placeholder="ex 2024" min="1990" max="2100" style="width:90px;">
+      <span style="font-size:12px; color:var(--text-muted);">S'applique automatiquement à chaque personne ajoutée — modifiable individuellement si besoin.</span>
+    </div>
     <div id="mails-blocs-container"></div>
     <button type="button" class="btn secondary" id="btn-ajouter-bloc-mail" style="margin-bottom:10px;">+ Ajouter une autre personne</button>
     <div id="mails-masse-status" style="font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
@@ -936,6 +941,10 @@ document.getElementById("btn-import-mails-masse").addEventListener("click", () =
   ajouterBlocMail();
   document.getElementById("btn-ajouter-bloc-mail").addEventListener("click", ajouterBlocMail);
   document.getElementById("btn-analyser-mails-masse").addEventListener("click", analyserMailsMasse);
+  document.getElementById("annee-mail-globale").addEventListener("input", (e) => {
+    const val = e.target.value;
+    document.querySelectorAll(".bloc-date-mail").forEach((champ) => { champ.value = val; });
+  });
 });
 
 let compteurBlocMail = 0;
@@ -969,6 +978,12 @@ function ajouterBlocMail() {
   `;
   container.appendChild(div);
   div.querySelector(".bloc-supprimer").addEventListener("click", () => div.remove());
+
+  // Reprend automatiquement l'année du lot déjà saisie en haut de la fenêtre, si elle existe
+  const anneeGlobale = document.getElementById("annee-mail-globale");
+  if (anneeGlobale && anneeGlobale.value) {
+    div.querySelector(".bloc-date-mail").value = anneeGlobale.value;
+  }
 
   // Collage/glisser-déposer d'une ou plusieurs images copiées depuis le mail, sans passer par le disque dur
   const zoneCollage = div.querySelector(".bloc-photo-collage");
