@@ -917,9 +917,9 @@ function ajouterBlocMail() {
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV (facultatif — pas grave si tu ne l'as pas)</div>
         <input type="file" class="bloc-cv" accept=".pdf">
       </div>
-      <div style="min-width:150px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Date du mail</div>
-        <input type="date" class="bloc-date-mail">
+      <div style="min-width:110px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Année du mail</div>
+        <input type="number" class="bloc-date-mail" placeholder="ex 2026" min="1990" max="2100">
       </div>
     </div>
   `;
@@ -1008,7 +1008,7 @@ async function analyserMailsMasse() {
         const bloc = paquet[idx];
         if (!bloc) return;
         // Si une date de mail a été donnée et qu'aucune année de photo n'a été détectée par ailleurs, on l'utilise
-        if (bloc.dateMail && !r.photo_annee) r.photo_annee = Number(bloc.dateMail.slice(0, 4));
+        if (bloc.dateMail && !r.photo_annee) r.photo_annee = Number(bloc.dateMail);
         resultatsComplets.push(r);
         fichiersComplets.push({ photos: bloc.photos, cv: bloc.cv });
       });
