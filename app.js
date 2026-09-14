@@ -1017,6 +1017,26 @@ function ajouterBlocMail() {
       rafraichirAffichagePhotos();
     }
   });
+
+  // Quand on colle le texte du mail (Ctrl+V dans la zone de texte), si le mail copié contenait
+  // aussi une ou plusieurs photos, on les récupère automatiquement en même temps que le texte —
+  // pas besoin de les glisser séparément dans la case Photo.
+  const zoneTexte = div.querySelector(".bloc-texte-mail");
+  zoneTexte.addEventListener("paste", (e) => {
+    const items = e.clipboardData ? e.clipboardData.items : [];
+    let nbImagesTrouvees = 0;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) { photosAccumulees.push(file); nbImagesTrouvees++; }
+      }
+    }
+    if (nbImagesTrouvees) {
+      rafraichirAffichagePhotos();
+      zoneCollage.textContent += ` (${nbImagesTrouvees} récupérée(s) automatiquement depuis le mail collé)`;
+    }
+    // Le texte se colle normalement dans le textarea (comportement par défaut du navigateur), inchangé.
+  });
 }
 
 async function analyserMailsMasse() {
