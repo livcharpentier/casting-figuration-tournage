@@ -1,6 +1,13 @@
 // ==========================================================
 // CONFIG
 // ==========================================================
+
+// Empêche le navigateur d'ouvrir/afficher en grand un fichier glissé qui atterrit
+// en dehors d'une zone de dépôt précise (comportement par défaut du navigateur qui,
+// sinon, quitte l'appli et fait perdre tout ce qui était en cours de saisie).
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
+
 const SUPABASE_URL = "https://ljregtoosrhetgocvrkg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxqcmVndG9vc3JoZXRnb2N2cmtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMjc5NDAsImV4cCI6MjA5MjkwMzk0MH0.Ij9HGLABdcC2sF4iNiEo8tDJKUrIIlaueniYo2ESOA4";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
