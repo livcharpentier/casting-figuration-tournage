@@ -47,6 +47,8 @@ let state = {
   groupesDoublons: [],
   motsRechercheIntelligente: [],
   derniereRechercheIntelligenteMot: null,
+  motsRechercheIntelligentePersonnes: [],
+  derniereRechercheIntelligentePersonnesMot: null,
   currentPrepayeJourId: null,
   currentRecapAdminJourId: null,
 };
@@ -222,7 +224,21 @@ function renderPersonnesGrid() {
   const search = document.getElementById("search-personnes").value.trim().toLowerCase();
   const grid = document.getElementById("personnes-grid");
   let list = state.personnes;
-  if (search) list = list.filter((p) => `${p.nom} ${p.prenom}`.toLowerCase().includes(search));
+  if (search) {
+    const motsCles = (search === state.derniereRechercheIntelligentePersonnesMot && state.motsRechercheIntelligentePersonnes.length)
+      ? state.motsRechercheIntelligentePersonnes
+      : [search];
+    list = list.filter((p) => {
+      const champs = [
+        `${p.nom} ${p.prenom}`, p.metier, p.competences_particulieres, p.signes_particuliers,
+        p.experience_parcours, p.notes, p.agence,
+      ];
+      return champs.some((c) => {
+        const valeur = (c || "").toLowerCase();
+        return motsCles.some((mot) => valeur.includes(mot));
+      });
+    });
+  }
 
   const totalGeneral = state.personnes.length;
   const nbComediens = state.personnes.filter((p) => p.type_personne === "comedien").length;
@@ -615,6 +631,25 @@ async function quickDeletePersonne(id) {
   await loadPersonnes();
 }
 document.getElementById("search-personnes").addEventListener("input", renderPersonnesGrid);
+
+document.getElementById("btn-recherche-intelligente-personnes").addEventListener("click", async () => {
+  const input = document.getElementById("search-personnes");
+  const mot = input.value.trim().toLowerCase();
+  const status = document.getElementById("recherche-intelligente-personnes-status");
+  if (!mot) { status.textContent = "Tape d'abord un nom, une profession ou une particularité."; return; }
+
+  status.innerHTML = `<span class="spinner"></span> Recherche des mots liés à "${esc(mot)}"...`;
+  try {
+    const resultats = await callExtractPdtApi({ type: "elargir_mot_cle", texte: mot });
+    const mots = (resultats[0] && resultats[0].mots) ? resultats[0].mots.map((m) => m.toLowerCase()) : [mot];
+    state.motsRechercheIntelligentePersonnes = mots;
+    state.derniereRechercheIntelligentePersonnesMot = mot;
+    status.textContent = `Recherche étendue à : ${mots.join(", ")}`;
+    renderPersonnesGrid();
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
 
 // ==========================================================
 // DOUBLONS (détection + fusion, en conservant toutes les photos datées)
