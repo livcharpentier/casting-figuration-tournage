@@ -163,8 +163,17 @@ Renvoie UNIQUEMENT un tableau JSON valide (rien avant, rien après, pas de balis
   }
 ]
 Traite absolument toutes les lignes fournies, dans l'ordre, sans en sauter.`;
+    } else if (type === 'elargir_mot_cle') {
+      contextText = `Un utilisateur cherche des comédiens/figurants pour un casting avec le mot-clé ou l'expression suivante : "${texte}"`;
+      schemaDescription = `
+Renvoie UNIQUEMENT un tableau JSON valide contenant un seul élément (rien avant, rien après, pas de balises markdown) :
+[
+  {
+    "mots": ["", "", ""]   // une liste de 4 à 10 mots ou expressions courtes, en minuscules, incluant le mot-clé d'origine ET des mots étroitement liés/synonymes/catégorie parente utiles pour retrouver des profils pertinents dans une base de comédiens/figurants (compétences, physique, matériel possédé, pratiques). Exemple : pour "echassier" → ["echassier", "echasses", "cirque", "circassien", "acrobate"]. Exemple : pour "velo" → ["velo", "cyclisme", "cycliste", "bicyclette", "vtt"]. Reste pertinent pour un contexte de casting/tournage, n'invente pas de mots hors sujet.
+  }
+]`;
     } else {
-      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes', 'import_photos_masse', 'import_emails_masse' ou 'ville_depuis_notes'." });
+      res.status(400).json({ error: "Type invalide, attendu 'pdt', 'scenario', 'depouillement', 'liste_figurants', 'genre_personnes', 'import_photos_masse', 'import_emails_masse', 'ville_depuis_notes' ou 'elargir_mot_cle'." });
       return;
     }
 
