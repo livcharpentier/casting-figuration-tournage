@@ -38,6 +38,8 @@ let state = {
   importMailsMasseResultats: [],
   importMailsMasseFichiers: [],
   groupesDoublons: [],
+  motsRechercheIntelligente: [],
+  derniereRechercheIntelligenteMot: null,
   currentPrepayeJourId: null,
   currentRecapAdminJourId: null,
 };
@@ -2127,13 +2129,19 @@ async function generateTrombinoscopePortraits() {
   if (competence) list = list.filter((p) => (p.competences_particulieres || "").toLowerCase().includes(competence));
   if (langue) list = list.filter((p) => (p.langues || "").toLowerCase().includes(langue));
   if (rechercheLibre) {
+    const motsCles = (rechercheLibre === state.derniereRechercheIntelligenteMot && state.motsRechercheIntelligente.length)
+      ? state.motsRechercheIntelligente
+      : [rechercheLibre];
     list = list.filter((p) => {
       const champs = [
         p.nom, p.prenom, p.metier, p.competences_particulieres, p.langues,
         p.morphologie, p.couleur_yeux, p.couleur_cheveux, p.notes,
         p.experience_parcours, p.agence, p.adresse, p.types_permis, p.signes_particuliers,
       ];
-      return champs.some((c) => (c || "").toLowerCase().includes(rechercheLibre));
+      return champs.some((c) => {
+        const valeur = (c || "").toLowerCase();
+        return motsCles.some((mot) => valeur.includes(mot));
+      });
     });
   }
 
@@ -2311,6 +2319,25 @@ document.getElementById("btn-trombi-whatsapp").addEventListener("click", () => {
   const text = `Trombinoscope — ${planche}\n\n` + state.lastTrombiSummary.map((x) => `${x.nom}${x.details ? " — " + x.details : ""}`).join("\n");
   window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
 });
+document.getElementById("btn-recherche-intelligente").addEventListener("click", async () => {
+  const input = document.getElementById("tf-recherche-libre");
+  const mot = input.value.trim().toLowerCase();
+  const status = document.getElementById("recherche-intelligente-status");
+  if (!mot) { status.textContent = "Tape d'abord un mot-clé dans la recherche libre."; return; }
+
+  status.innerHTML = `<span class="spinner"></span> Recherche des mots liés à "${esc(mot)}"...`;
+  try {
+    const resultats = await callExtractPdtApi({ type: "elargir_mot_cle", texte: mot });
+    const mots = (resultats[0] && resultats[0].mots) ? resultats[0].mots.map((m) => m.toLowerCase()) : [mot];
+    state.motsRechercheIntelligente = mots;
+    state.derniereRechercheIntelligenteMot = mot;
+    status.textContent = `Recherche étendue à : ${mots.join(", ")}`;
+    await generateTrombinoscope();
+  } catch (err) {
+    status.textContent = "Erreur : " + err.message;
+  }
+});
+
 document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-planche").value = "portraits";
   document.getElementById("tf-type-wrapper").style.display = "flex";
