@@ -880,39 +880,88 @@ document.getElementById("btn-import-mails-masse").addEventListener("click", () =
   openModal(`
     <span class="close-x" onclick="closeModalAvecConfirmation()">×</span>
     <h2>Import en masse depuis des mails collés</h2>
-    <p style="font-size:13px; color:var(--text-muted);">Colle tous les mails à la suite. <strong>Sépare chaque mail par une ligne contenant seulement trois tirets : ---</strong> (sur sa propre ligne, entre deux mails).</p>
-    <textarea id="mails-masse-textarea" style="width:100%; min-height:260px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px; font-family:var(--font-ui);" placeholder="Mail de la 1ère personne...&#10;&#10;---&#10;&#10;Mail de la 2ème personne...&#10;&#10;---&#10;&#10;Mail de la 3ème personne..."></textarea>
-    <div id="mails-masse-status" style="font-size:12px; color:var(--text-muted); margin-top:8px;"></div>
+    <p style="font-size:13px; color:var(--text-muted);">Pour chaque personne : colle le texte de son mail, glisse sa photo et son CV, et indique la date du mail (sert à dater sa photo si le nom de fichier ne le dit pas déjà). Clique <strong>"+ Ajouter une autre personne"</strong> pour enchaîner sans tout analyser à chaque fois, puis <strong>"Analyser tout"</strong> une fois que tu as fini.</p>
+    <div id="mails-blocs-container"></div>
+    <button type="button" class="btn secondary" id="btn-ajouter-bloc-mail" style="margin-bottom:10px;">+ Ajouter une autre personne</button>
+    <div id="mails-masse-status" style="font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
       <button class="btn secondary" onclick="closeModalAvecConfirmation()">Annuler</button>
-      <button class="btn" id="btn-analyser-mails-masse">Analyser les mails</button>
+      <button class="btn" id="btn-analyser-mails-masse">Analyser tout</button>
     </div>
   `);
+  ajouterBlocMail();
+  document.getElementById("btn-ajouter-bloc-mail").addEventListener("click", ajouterBlocMail);
   document.getElementById("btn-analyser-mails-masse").addEventListener("click", analyserMailsMasse);
 });
 
+let compteurBlocMail = 0;
+function ajouterBlocMail() {
+  compteurBlocMail++;
+  const container = document.getElementById("mails-blocs-container");
+  const div = document.createElement("div");
+  div.className = "bloc-mail-perso";
+  div.style = "border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px;";
+  div.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <strong>Personne ${compteurBlocMail}</strong>
+      <button type="button" class="btn-icon bloc-supprimer">Supprimer ce bloc</button>
+    </div>
+    <textarea class="bloc-texte-mail" placeholder="Colle ici le texte du mail de cette personne..." style="width:100%; min-height:90px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px;"></textarea>
+    <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:150px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Photo</div>
+        <input type="file" class="bloc-photo" accept="image/*">
+      </div>
+      <div style="flex:1; min-width:150px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV</div>
+        <input type="file" class="bloc-cv" accept=".pdf">
+      </div>
+      <div style="min-width:150px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Date du mail</div>
+        <input type="date" class="bloc-date-mail">
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+  div.querySelector(".bloc-supprimer").addEventListener("click", () => div.remove());
+}
+
 async function analyserMailsMasse() {
-  const texteComplet = document.getElementById("mails-masse-textarea").value;
   const status = document.getElementById("mails-masse-status");
-  const blocs = texteComplet.split(/\n\s*---\s*\n/).map((b) => b.trim()).filter((b) => b.length > 20);
-  if (!blocs.length) { status.textContent = "Aucun mail détecté. Vérifie que chaque mail est bien séparé par une ligne \"---\"."; return; }
+  const blocsEls = Array.from(document.querySelectorAll(".bloc-mail-perso"));
+  const blocsData = blocsEls
+    .map((el) => ({
+      texte: el.querySelector(".bloc-texte-mail").value.trim(),
+      photo: el.querySelector(".bloc-photo").files[0] || null,
+      cv: el.querySelector(".bloc-cv").files[0] || null,
+      dateMail: el.querySelector(".bloc-date-mail").value || null,
+    }))
+    .filter((b) => b.texte || b.photo || b.cv);
+
+  if (!blocsData.length) { status.textContent = "Ajoute au moins une personne (texte, photo ou CV)."; return; }
 
   const TAILLE_PAQUET = 8; // mails complets = plus de texte par ligne que les noms de fichiers, on réduit le lot
-  const nbPaquets = Math.ceil(blocs.length / TAILLE_PAQUET);
+  const nbPaquets = Math.ceil(blocsData.length / TAILLE_PAQUET);
   let resultatsComplets = [];
+  let fichiersComplets = [];
 
   for (let p = 0; p < nbPaquets; p++) {
     const debut = p * TAILLE_PAQUET;
-    const fin = Math.min(debut + TAILLE_PAQUET, blocs.length);
-    const paquetBlocs = blocs.slice(debut, fin);
-    status.innerHTML = `<span class="spinner"></span> Analyse : mails ${debut + 1} à ${fin} sur ${blocs.length}...`;
+    const fin = Math.min(debut + TAILLE_PAQUET, blocsData.length);
+    const paquet = blocsData.slice(debut, fin);
+    status.innerHTML = `<span class="spinner"></span> Analyse : personne ${debut + 1} à ${fin} sur ${blocsData.length}...`;
 
-    const texte = paquetBlocs.map((b, i) => `=== MAIL N°${i} ===\n${b}`).join("\n\n");
+    const texte = paquet.map((b, i) => `=== MAIL N°${i} ===\n${b.texte || "(pas de texte de mail — seulement une photo et/ou un CV)"}`).join("\n\n");
     try {
       const resultats = await callExtractPdtApi({ type: "import_emails_masse", texte });
       resultats.forEach((r) => {
         const idx = Number(r.numero);
-        if (paquetBlocs[idx] !== undefined) resultatsComplets.push(r);
+        const bloc = paquet[idx];
+        if (!bloc) return;
+        // Si une date de mail a été donnée et qu'aucune année de photo n'a été détectée par ailleurs, on l'utilise
+        if (bloc.dateMail && !r.photo_annee) r.photo_annee = Number(bloc.dateMail.slice(0, 4));
+        resultatsComplets.push(r);
+        fichiersComplets.push({ photo: bloc.photo, cv: bloc.cv });
       });
     } catch (err) {
       status.textContent = "Erreur : " + err.message;
@@ -922,8 +971,9 @@ async function analyserMailsMasse() {
 
   closeModal();
   const statusGlobal = document.getElementById("import-masse-status");
-  statusGlobal.textContent = `${resultatsComplets.length} fiche(s) détectée(s) sur ${blocs.length} mail(s). Vérifie ci-dessous avant d'importer.`;
+  statusGlobal.textContent = `${resultatsComplets.length} fiche(s) détectée(s) sur ${blocsData.length} personne(s). Vérifie ci-dessous avant d'importer.`;
   state.importMailsMasseResultats = resultatsComplets;
+  state.importMailsMasseFichiers = fichiersComplets;
   renderImportMailsMasseReview(resultatsComplets);
 }
 
@@ -931,7 +981,9 @@ function renderImportMailsMasseReview(resultats) {
   const container = document.getElementById("import-masse-review");
   if (!resultats.length) { container.style.display = "none"; return; }
   container.style.display = "block";
-  state.importMailsMasseFichiers = resultats.map(() => ({ photo: null, cv: null }));
+  if (!state.importMailsMasseFichiers || state.importMailsMasseFichiers.length !== resultats.length) {
+    state.importMailsMasseFichiers = resultats.map(() => ({ photo: null, cv: null }));
+  }
 
   function trouverDoublon(nom, prenom) {
     const n = (nom || "").trim().toLowerCase();
@@ -970,11 +1022,11 @@ function renderImportMailsMasseReview(resultats) {
                 <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
                 <td style="min-width:110px;">
                   <input type="file" class="mails-masse-photo-input" data-idx="${i}" accept="image/*" style="max-width:100px; font-size:10px;">
-                  <div id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">—</div>
+                  <div id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].photo ? "✓ " + esc(state.importMailsMasseFichiers[i].photo.name) : "—"}</div>
                 </td>
                 <td style="min-width:110px;">
                   <input type="file" class="mails-masse-cv-input" data-idx="${i}" accept=".pdf" style="max-width:100px; font-size:10px;">
-                  <div id="mails-masse-cv-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">—</div>
+                  <div id="mails-masse-cv-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].cv ? "✓ " + esc(state.importMailsMasseFichiers[i].cv.name) : "—"}</div>
                 </td>
                 <td>${doublon ? "Doublon possible" : "Nouvelle fiche"}</td>
               </tr>
