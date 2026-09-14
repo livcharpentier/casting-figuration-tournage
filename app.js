@@ -37,6 +37,7 @@ let state = {
   importMasseResultats: [],
   importMailsMasseResultats: [],
   importMailsMasseFichiers: [],
+  groupesDoublons: [],
   currentPrepayeJourId: null,
   currentRecapAdminJourId: null,
 };
@@ -685,6 +686,113 @@ document.getElementById("btn-recuperer-villes").addEventListener("click", async 
   status.textContent = `${totalCorrigees} adresse(s) récupérée(s) depuis les notes, sur ${aTraiter.length} fiche(s) traitée(s).`;
   await loadPersonnes();
 });
+
+// ==========================================================
+// DOUBLONS (détection + fusion, en conservant toutes les photos datées)
+// ==========================================================
+function normaliserNomComplet(p) {
+  const enlever = (s) => (s || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return `${enlever(p.nom)}|${enlever(p.prenom)}`;
+}
+
+document.getElementById("btn-detecter-doublons").addEventListener("click", () => {
+  const groupes = {};
+  state.personnes.forEach((p) => {
+    if (!p.nom && !p.prenom) return;
+    const cle = normaliserNomComplet(p);
+    if (!groupes[cle]) groupes[cle] = [];
+    groupes[cle].push(p);
+  });
+  const doublons = Object.values(groupes).filter((g) => g.length > 1);
+  renderDoublonsReview(doublons);
+});
+
+function renderDoublonsReview(groupes) {
+  const container = document.getElementById("doublons-review");
+  if (!groupes.length) {
+    container.style.display = "block";
+    container.innerHTML = `<div class="filter-panel">Aucun doublon détecté (même nom + prénom).</div>`;
+    return;
+  }
+  container.style.display = "block";
+  container.innerHTML = `
+    <div class="filter-panel">
+      <div style="font-weight:700; margin-bottom:10px;">${groupes.length} groupe(s) de doublons détecté(s) (même nom + prénom, comparaison insensible aux accents/majuscules).</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">Pour chaque groupe, choisis quelle fiche garder comme fiche principale — les photos et documents des autres fiches du groupe seront automatiquement ajoutés à sa galerie (avec leur date d'origine conservée), rien n'est perdu, puis les fiches en trop sont supprimées.</div>
+      ${groupes.map((groupe, gIdx) => `
+        <div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="font-weight:700; margin-bottom:8px;">${esc(groupe[0].prenom)} ${esc(groupe[0].nom)} — ${groupe.length} fiches</div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            ${groupe.map((p, pIdx) => `
+              <div style="width:150px; border:1px solid var(--border); border-radius:6px; padding:8px; text-align:center;">
+                ${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%; aspect-ratio:3/4; object-fit:contain; background:var(--surface-2); border-radius:4px;">` : `<div style="width:100%; aspect-ratio:3/4; background:var(--surface-2); border-radius:4px;"></div>`}
+                <div style="font-size:11px; font-weight:700; margin-top:4px; color:${p.photo_annee ? "var(--accent)" : "var(--text-muted)"};">${p.photo_annee ? "Photo " + p.photo_annee : "Année inconnue"}</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${p.telephone ? esc(p.telephone) : "(pas de tél)"}</div>
+                <div style="font-size:10px; color:var(--text-muted);">${p.created_at ? "Ajoutée le " + new Date(p.created_at).toLocaleDateString("fr-FR") : ""}</div>
+                <button type="button" class="btn secondary" style="font-size:11px; margin-top:6px; width:100%;" onclick="fusionnerDoublons(${gIdx}, ${pIdx})">Garder celle-ci</button>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  state.groupesDoublons = groupes;
+}
+
+async function fusionnerDoublons(groupeIdx, primaireIdx) {
+  const groupe = state.groupesDoublons[groupeIdx];
+  const primaire = groupe[primaireIdx];
+  const autres = groupe.filter((_, i) => i !== primaireIdx);
+  if (!confirm(`Garder la fiche de ${primaire.prenom} ${primaire.nom} (${primaire.photo_annee || "année inconnue"}) et fusionner les ${autres.length} autre(s) dedans ? Les photos des autres fiches seront ajoutées à sa galerie avant suppression.`)) return;
+
+  const champsAFusionner = ["telephone", "email", "adresse", "age", "taille_cm", "poids_kg", "genre", "date_naissance",
+    "metier", "competences_particulieres", "signes_particuliers", "permis_conduire", "types_permis", "langues",
+    "lien_instagram", "lien_showreel", "lien_site_web", "agence", "experience_parcours", "iban", "bic",
+    "lieu_naissance", "nationalite", "num_secu_sociale", "situation_familiale", "nb_enfants_charge",
+    "nom_jeune_fille", "centre_secu_sociale", "personne_a_prevenir", "parent_nom", "parent_prenom",
+    "parent_telephone", "parent_email", "parent_profession", "parent_notes"];
+
+  const maj = {};
+  for (const champ of champsAFusionner) {
+    if ((primaire[champ] === null || primaire[champ] === undefined || primaire[champ] === "") ) {
+      const source = autres.find((a) => a[champ] !== null && a[champ] !== undefined && a[champ] !== "");
+      if (source) maj[champ] = source[champ];
+    }
+  }
+  // Fusion des notes (concaténation, pour ne rien perdre)
+  const notesAutres = autres.map((a) => a.notes).filter(Boolean);
+  if (notesAutres.length) {
+    maj.notes = [primaire.notes, ...notesAutres].filter(Boolean).join("\n---\n");
+  }
+
+  if (Object.keys(maj).length) {
+    await sb.from("personnes").update(maj).eq("id", primaire.id);
+  }
+
+  for (const autre of autres) {
+    // La photo principale de la fiche à supprimer devient une photo de galerie sur la fiche gardée
+    if (autre.photo_url) {
+      await sb.from("documents_personne").insert({
+        personne_id: primaire.id,
+        type_document: "photo",
+        categorie_photo: "autre",
+        annee_photo: autre.photo_annee || null,
+        libelle: `Photo fusionnée (fiche du ${autre.created_at ? new Date(autre.created_at).toLocaleDateString("fr-FR") : "?"})`,
+        fichier_url: autre.photo_url,
+      });
+    }
+    // Les documents déjà existants (CV, autres photos...) sont transférés vers la fiche gardée
+    await sb.from("documents_personne").update({ personne_id: primaire.id }).eq("personne_id", autre.id);
+    // Suppression de la fiche en trop
+    await sb.from("personnes").delete().eq("id", autre.id);
+  }
+
+  await loadPersonnes();
+  // Retire ce groupe de la liste affichée et redessine
+  state.groupesDoublons.splice(groupeIdx, 1);
+  renderDoublonsReview(state.groupesDoublons);
+}
 
 // ==========================================================
 // IMPORT EN MASSE DEPUIS DES PHOTOS (nom de fichier structuré, sans analyse d'image)
