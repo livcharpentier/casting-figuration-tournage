@@ -909,12 +909,12 @@ function ajouterBlocMail() {
     <textarea class="bloc-texte-mail" placeholder="Colle ici le texte du mail de cette personne..." style="width:100%; min-height:90px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px;"></textarea>
     <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
       <div style="flex:1; min-width:170px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Photo — clique ici puis fais Ctrl+V (Cmd+V) juste après avoir "copié l'image" dans le mail (clic droit sur la photo → Copier l'image), sans l'enregistrer sur l'ordinateur</div>
-        <div class="bloc-photo-collage" tabindex="0" style="border:1px dashed var(--border); border-radius:6px; padding:8px; text-align:center; font-size:11px; color:var(--text-muted); cursor:text; min-height:34px;">Clique ici puis Ctrl+V (ou glisse un fichier)</div>
-        <input type="file" class="bloc-photo" accept="image/*" style="display:none;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Photo(s) — glisse-en une ou plusieurs, ou clique ici puis Ctrl+V (Cmd+V) après avoir "copié l'image" dans le mail, sans rien enregistrer sur l'ordinateur</div>
+        <div class="bloc-photo-collage" tabindex="0" style="border:1px dashed var(--border); border-radius:6px; padding:8px; text-align:center; font-size:11px; color:var(--text-muted); cursor:text; min-height:34px;">Clique ici puis Ctrl+V (ou glisse un ou plusieurs fichiers)</div>
+        <input type="file" class="bloc-photo" accept="image/*" multiple style="display:none;">
       </div>
       <div style="flex:1; min-width:150px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV (fichier depuis l'ordinateur)</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV (facultatif — pas grave si tu ne l'as pas)</div>
         <input type="file" class="bloc-cv" accept=".pdf">
       </div>
       <div style="min-width:150px;">
@@ -926,34 +926,51 @@ function ajouterBlocMail() {
   container.appendChild(div);
   div.querySelector(".bloc-supprimer").addEventListener("click", () => div.remove());
 
-  // Collage direct d'une image copiée depuis le mail (Ctrl+V), sans passer par le disque dur
+  // Collage/glisser-déposer d'une ou plusieurs images copiées depuis le mail, sans passer par le disque dur
   const zoneCollage = div.querySelector(".bloc-photo-collage");
   const inputPhoto = div.querySelector(".bloc-photo");
-  const afficherPhotoCollee = (file) => {
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    inputPhoto.files = dt.files;
-    zoneCollage.textContent = "✓ Photo collée : " + (file.name || "image du presse-papier");
+  let photosAccumulees = [];
+  const rafraichirAffichagePhotos = () => {
+    if (!photosAccumulees.length) {
+      zoneCollage.textContent = "Clique ici puis Ctrl+V (ou glisse un ou plusieurs fichiers)";
+      zoneCollage.style.color = "var(--text-muted)";
+      zoneCollage.style.borderColor = "var(--border)";
+      return;
+    }
+    zoneCollage.textContent = `✓ ${photosAccumulees.length} photo(s) : ${photosAccumulees.map((f) => f.name || "image collée").join(", ")}`;
     zoneCollage.style.color = "var(--accent)";
     zoneCollage.style.borderColor = "var(--accent)";
+    const dt = new DataTransfer();
+    photosAccumulees.forEach((f) => dt.items.add(f));
+    inputPhoto.files = dt.files;
   };
   zoneCollage.addEventListener("click", () => zoneCollage.focus());
   zoneCollage.addEventListener("paste", (e) => {
     const items = e.clipboardData ? e.clipboardData.items : [];
+    let trouve = false;
     for (const item of items) {
       if (item.type.startsWith("image/")) {
         const file = item.getAsFile();
-        if (file) { afficherPhotoCollee(file); e.preventDefault(); return; }
+        if (file) { photosAccumulees.push(file); trouve = true; }
       }
     }
-    zoneCollage.textContent = "Aucune image trouvée dans le presse-papier — vérifie que tu as bien fait \"Copier l'image\" (pas juste sélectionner le texte).";
+    if (trouve) { rafraichirAffichagePhotos(); e.preventDefault(); }
+    else { zoneCollage.textContent = "Aucune image trouvée dans le presse-papier — vérifie que tu as bien fait \"Copier l'image\" (pas juste sélectionner le texte)."; }
   });
-  enableDragDrop(zoneCollage, inputPhoto);
+  zoneCollage.addEventListener("dragover", (e) => { e.preventDefault(); zoneCollage.classList.add("dragover"); });
+  zoneCollage.addEventListener("dragleave", () => zoneCollage.classList.remove("dragover"));
+  zoneCollage.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zoneCollage.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      Array.from(e.dataTransfer.files).forEach((f) => photosAccumulees.push(f));
+      rafraichirAffichagePhotos();
+    }
+  });
   inputPhoto.addEventListener("change", () => {
-    if (inputPhoto.files[0]) {
-      zoneCollage.textContent = "✓ " + inputPhoto.files[0].name;
-      zoneCollage.style.color = "var(--accent)";
-      zoneCollage.style.borderColor = "var(--accent)";
+    if (inputPhoto.files && inputPhoto.files.length) {
+      photosAccumulees = Array.from(inputPhoto.files);
+      rafraichirAffichagePhotos();
     }
   });
 }
@@ -964,13 +981,13 @@ async function analyserMailsMasse() {
   const blocsData = blocsEls
     .map((el) => ({
       texte: el.querySelector(".bloc-texte-mail").value.trim(),
-      photo: el.querySelector(".bloc-photo").files[0] || null,
+      photos: Array.from(el.querySelector(".bloc-photo").files || []),
       cv: el.querySelector(".bloc-cv").files[0] || null,
       dateMail: el.querySelector(".bloc-date-mail").value || null,
     }))
-    .filter((b) => b.texte || b.photo || b.cv);
+    .filter((b) => b.texte || b.photos.length || b.cv);
 
-  if (!blocsData.length) { status.textContent = "Ajoute au moins une personne (texte, photo ou CV)."; return; }
+  if (!blocsData.length) { status.textContent = "Ajoute au moins une personne (texte, photo(s) ou CV)."; return; }
 
   const TAILLE_PAQUET = 8; // mails complets = plus de texte par ligne que les noms de fichiers, on réduit le lot
   const nbPaquets = Math.ceil(blocsData.length / TAILLE_PAQUET);
@@ -993,7 +1010,7 @@ async function analyserMailsMasse() {
         // Si une date de mail a été donnée et qu'aucune année de photo n'a été détectée par ailleurs, on l'utilise
         if (bloc.dateMail && !r.photo_annee) r.photo_annee = Number(bloc.dateMail.slice(0, 4));
         resultatsComplets.push(r);
-        fichiersComplets.push({ photo: bloc.photo, cv: bloc.cv });
+        fichiersComplets.push({ photos: bloc.photos, cv: bloc.cv });
       });
     } catch (err) {
       status.textContent = "Erreur : " + err.message;
@@ -1014,7 +1031,7 @@ function renderImportMailsMasseReview(resultats) {
   if (!resultats.length) { container.style.display = "none"; return; }
   container.style.display = "block";
   if (!state.importMailsMasseFichiers || state.importMailsMasseFichiers.length !== resultats.length) {
-    state.importMailsMasseFichiers = resultats.map(() => ({ photo: null, cv: null }));
+    state.importMailsMasseFichiers = resultats.map(() => ({ photos: [], cv: null }));
   }
 
   function trouverDoublon(nom, prenom) {
@@ -1053,8 +1070,8 @@ function renderImportMailsMasseReview(resultats) {
                 <td>${esc(r.telephone)}</td>
                 <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.email)}</td>
                 <td style="min-width:110px;">
-                  <input type="file" class="mails-masse-photo-input" data-idx="${i}" accept="image/*" style="max-width:100px; font-size:10px;">
-                  <div id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].photo ? "✓ " + esc(state.importMailsMasseFichiers[i].photo.name) : "—"}</div>
+                  <input type="file" class="mails-masse-photo-input" data-idx="${i}" accept="image/*" multiple style="max-width:100px; font-size:10px;">
+                  <div id="mails-masse-photo-${i}" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${state.importMailsMasseFichiers[i] && state.importMailsMasseFichiers[i].photos && state.importMailsMasseFichiers[i].photos.length ? "✓ " + state.importMailsMasseFichiers[i].photos.length + " photo(s)" : "—"}</div>
                 </td>
                 <td style="min-width:110px;">
                   <input type="file" class="mails-masse-cv-input" data-idx="${i}" accept=".pdf" style="max-width:100px; font-size:10px;">
@@ -1098,8 +1115,8 @@ function renderImportMailsMasseReview(resultats) {
         state.importMailsMasseFichiers[idx].cv = file;
         document.getElementById(`mails-masse-cv-${idx}`).textContent = "✓ " + file.name;
       } else if (file.type.startsWith("image/")) {
-        state.importMailsMasseFichiers[idx].photo = file;
-        document.getElementById(`mails-masse-photo-${idx}`).textContent = "✓ " + file.name;
+        state.importMailsMasseFichiers[idx].photos.push(file);
+        document.getElementById(`mails-masse-photo-${idx}`).textContent = "✓ " + state.importMailsMasseFichiers[idx].photos.length + " photo(s)";
       }
     });
     document.getElementById("mails-masse-fichiers-status").textContent = `${files.length - nonAssocies.length} fichier(s) associé(s) automatiquement.`;
@@ -1112,10 +1129,10 @@ function renderImportMailsMasseReview(resultats) {
   document.querySelectorAll(".mails-masse-photo-input").forEach((input) => {
     input.addEventListener("change", (e) => {
       const idx = Number(input.dataset.idx);
-      const file = e.target.files[0];
-      if (!file) return;
-      state.importMailsMasseFichiers[idx].photo = file;
-      document.getElementById(`mails-masse-photo-${idx}`).textContent = "✓ " + file.name;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      state.importMailsMasseFichiers[idx].photos = state.importMailsMasseFichiers[idx].photos.concat(files);
+      document.getElementById(`mails-masse-photo-${idx}`).textContent = "✓ " + state.importMailsMasseFichiers[idx].photos.length + " photo(s)";
     });
   });
   document.querySelectorAll(".mails-masse-cv-input").forEach((input) => {
@@ -1148,7 +1165,7 @@ async function lancerImportMailsMasse() {
     status.innerHTML = `<span class="spinner"></span> Import en cours : ${i + 1} sur ${selectionnes.length} (${reussies} réussie(s), ${echecs} échec(s))...`;
     try {
       let photo_url = null;
-      if (fich.photo) photo_url = await uploadToStorage(fich.photo, "photos");
+      if (fich.photos && fich.photos.length) photo_url = await uploadToStorage(fich.photos[0], "photos");
       const { data: inserted, error: errInsert } = await sb.from("personnes").insert({
         nom: r.nom || "",
         prenom: r.prenom || "",
@@ -1182,6 +1199,12 @@ async function lancerImportMailsMasse() {
       if (fich.cv && inserted) {
         const cv_url = await uploadToStorage(fich.cv, "documents");
         await sb.from("documents_personne").insert({ personne_id: inserted.id, type_document: "cv", libelle: fich.cv.name, fichier_url: cv_url });
+      }
+      if (fich.photos && fich.photos.length > 1 && inserted) {
+        for (const photoSupp of fich.photos.slice(1)) {
+          const url = await uploadToStorage(photoSupp, "photos");
+          await sb.from("documents_personne").insert({ personne_id: inserted.id, type_document: "photo", categorie_photo: "autre", annee_photo: r.photo_annee || null, libelle: photoSupp.name, fichier_url: url });
+        }
       }
       reussies++;
     } catch (err) {
