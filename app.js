@@ -13,6 +13,91 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const BUCKET = "casting-media";
 
+// ==========================================================
+// FICHIERS PRIVÉS : liens temporaires signés
+// Les adresses enregistrées en base restent au format « public » (identifiant du fichier).
+// À la lecture, elles sont remplacées par un lien signé valable 7 jours ;
+// à l'écriture, un lien signé est reconverti au format enregistré.
+// ==========================================================
+const PREFIXE_PUBLIC = SUPABASE_URL + "/storage/v1/object/public/";
+const PREFIXE_SIGNE = SUPABASE_URL + "/storage/v1/object/sign/";
+const cacheLiensSignes = {}; // "bucket/chemin" -> lien signé
+function cheminDepuisUrl(u) {
+  if (typeof u !== "string") return null;
+  let reste = null;
+  if (u.startsWith(PREFIXE_PUBLIC)) reste = u.slice(PREFIXE_PUBLIC.length);
+  else if (u.startsWith(PREFIXE_SIGNE)) reste = u.slice(PREFIXE_SIGNE.length).split("?")[0];
+  if (!reste) return null;
+  try { reste = decodeURIComponent(reste); } catch (e) {}
+  const i = reste.indexOf("/");
+  return i > 0 ? { bucket: reste.slice(0, i), chemin: reste.slice(i + 1), cle: reste } : null;
+}
+function versFormatEnregistre(v) {
+  if (typeof v === "string") {
+    if (v.startsWith(PREFIXE_SIGNE)) { const c = cheminDepuisUrl(v); return c ? PREFIXE_PUBLIC + c.bucket + "/" + c.chemin : v; }
+    return v;
+  }
+  if (Array.isArray(v)) return v.map(versFormatEnregistre);
+  if (v && typeof v === "object" && !(v instanceof Blob) && !(v instanceof Date)) {
+    const o = {};
+    Object.keys(v).forEach((k) => { o[k] = versFormatEnregistre(v[k]); });
+    return o;
+  }
+  return v;
+}
+function collecterUrls(v, acc) {
+  if (typeof v === "string") { const c = cheminDepuisUrl(v); if (c && !cacheLiensSignes[c.cle]) acc.push(c); }
+  else if (Array.isArray(v)) v.forEach((x) => collecterUrls(x, acc));
+  else if (v && typeof v === "object") Object.keys(v).forEach((k) => collecterUrls(v[k], acc));
+}
+function remplacerUrls(v) {
+  if (Array.isArray(v)) { v.forEach((x, i) => { if (typeof x === "string") { const c = cheminDepuisUrl(x); if (c && cacheLiensSignes[c.cle]) v[i] = cacheLiensSignes[c.cle]; } else remplacerUrls(x); }); return; }
+  if (v && typeof v === "object") Object.keys(v).forEach((k) => {
+    const x = v[k];
+    if (typeof x === "string") { const c = cheminDepuisUrl(x); if (c && cacheLiensSignes[c.cle]) v[k] = cacheLiensSignes[c.cle]; }
+    else remplacerUrls(x);
+  });
+}
+async function signerUrlsDans(data) {
+  const manquants = [];
+  collecterUrls(data, manquants);
+  const parBucket = {};
+  manquants.forEach((c) => { (parBucket[c.bucket] = parBucket[c.bucket] || new Set()).add(c.chemin); });
+  for (const bucket of Object.keys(parBucket)) {
+    const chemins = [...parBucket[bucket]];
+    for (let i = 0; i < chemins.length; i += 100) {
+      const lot = chemins.slice(i, i + 100);
+      const { data: signes } = await sb.storage.from(bucket).createSignedUrls(lot, 60 * 60 * 24 * 7);
+      (signes || []).forEach((r, k) => { if (r && r.signedUrl) cacheLiensSignes[bucket + "/" + lot[k]] = r.signedUrl; });
+    }
+  }
+  remplacerUrls(data);
+  return data;
+}
+// Branche la signature sur toutes les lectures et la conversion sur toutes les écritures
+(function brancherLiensSignes() {
+  try {
+    const qb = sb.from("personnes");
+    const protoQB = Object.getPrototypeOf(qb);
+    ["insert", "update", "upsert"].forEach((m) => {
+      const orig = protoQB[m];
+      if (typeof orig !== "function") return;
+      protoQB[m] = function (valeurs, ...reste) { return orig.call(this, versFormatEnregistre(valeurs), ...reste); };
+    });
+    let proto = Object.getPrototypeOf(qb.select("id"));
+    while (proto && !Object.prototype.hasOwnProperty.call(proto, "then")) proto = Object.getPrototypeOf(proto);
+    if (proto) {
+      const origThen = proto.then;
+      proto.then = function (ok, ko) {
+        return origThen.call(this, async (res) => {
+          try { if (res && res.data) await signerUrlsDans(res.data); } catch (e) { console.warn("Liens signés", e); }
+          return ok ? ok(res) : res;
+        }, ko);
+      };
+    }
+  } catch (e) { console.warn("Impossible de brancher les liens signés", e); }
+})();
+
 const ROLE_TYPES = [
   { value: "silhouette", label: "Silhouette" },
   { value: "silhouette_parlante", label: "Silhouette parlante" },
@@ -107,7 +192,10 @@ async function uploadToStorage(file, prefix) {
   const { error } = await sb.storage.from(BUCKET).upload(path, file);
   if (error) throw error;
   const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  // Renvoie un lien signé (affichable) ; il est reconverti au format enregistré à l'écriture en base
+  const res = { url: data.publicUrl };
+  await signerUrlsDans(res);
+  return res.url;
 }
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -4196,9 +4284,46 @@ function initKioskModeIfNeeded() {
 // ==========================================================
 // INIT
 // ==========================================================
-(async function init() {
+// ==========================================================
+// CONNEXION (accès réservé)
+// ==========================================================
+let appliDemarree = false;
+async function demarrerAppli() {
+  if (appliDemarree) return;
+  appliDemarree = true;
+  document.body.classList.remove("non-connecte");
+  document.getElementById("login-screen").style.display = "none";
   await loadPersonnes();
   await loadFilms();
   await loadJours();
   initKioskModeIfNeeded();
+}
+function afficherConnexion(message) {
+  document.body.classList.add("non-connecte");
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("login-err").textContent = message || "";
+}
+async function connexionCasting() {
+  const btn = document.getElementById("login-btn");
+  const err = document.getElementById("login-err");
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  btn.disabled = true; btn.textContent = "Connexion…"; err.textContent = "";
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = "Se connecter";
+  if (error) { err.textContent = "E-mail ou mot de passe incorrect."; return; }
+  const { data: test, error: e2 } = await sb.from("films").select("id").limit(1);
+  if (e2) { err.textContent = "Connexion réussie, mais ce compte n'a pas accès aux données du casting."; return; }
+  demarrerAppli();
+}
+async function deconnexionCasting() {
+  if (!confirm("Se déconnecter de Casting & Figuration ?")) return;
+  await sb.auth.signOut();
+  location.reload();
+}
+
+(async function init() {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) demarrerAppli();
+  else afficherConnexion();
 })();

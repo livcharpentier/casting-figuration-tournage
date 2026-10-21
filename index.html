@@ -6,6 +6,7 @@
 <title>Casting & Figuration</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#16181D">
+<meta name="robots" content="noindex, nofollow, noarchive">
 <style>
   :root{
     --bg:#16181D;
@@ -41,6 +42,15 @@
   }
   header.app-header h1{ font-size:18px; margin:0; letter-spacing:.3px; }
   header.app-header .subtitle{ color:var(--text-muted); font-size:12px; }
+  #login-screen{ position:fixed; inset:0; z-index:9999; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:16px; }
+  #login-screen .login-box{ width:100%; max-width:360px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; }
+  #login-screen h2{ margin:0 0 4px; font-size:20px; }
+  #login-screen p{ margin:0 0 16px; color:var(--text-muted); font-size:13px; }
+  #login-screen input{ width:100%; padding:11px 12px; margin-bottom:10px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:15px; }
+  #login-screen button{ width:100%; padding:12px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; font-size:15px; cursor:pointer; }
+  #login-screen .login-err{ color:var(--red); font-size:13px; min-height:18px; margin-top:8px; }
+  body.non-connecte > *:not(#login-screen){ display:none !important; }
+  #btn-deconnexion{ margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
 
   nav.tabs{
     display:flex; gap:2px; padding:0 20px; background:var(--surface);
@@ -206,14 +216,25 @@
   }
 </style>
 </head>
-<body>
+<body class="non-connecte">
 
+<div id="login-screen" style="display:none">
+  <form class="login-box" onsubmit="event.preventDefault(); connexionCasting();">
+    <h2>Casting &amp; Figuration</h2>
+    <p>Accès réservé. Connectez-vous avec le même compte que l'appli Responsable Enfants.</p>
+    <input id="login-email" type="email" autocomplete="username" placeholder="E-mail" required>
+    <input id="login-password" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+    <button id="login-btn" type="submit">Se connecter</button>
+    <div class="login-err" id="login-err"></div>
+  </form>
+</div>
 <header class="app-header">
   <div class="slate"></div>
   <div>
     <h1>Casting &amp; Figuration</h1>
     <div class="subtitle">LEDR2 — Comédiens, figurants &amp; préparation HMC</div>
   </div>
+  <button id="btn-deconnexion" class="no-print" onclick="deconnexionCasting()">Se déconnecter</button>
 </header>
 
 <nav class="tabs">
