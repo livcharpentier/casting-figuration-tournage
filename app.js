@@ -772,7 +772,9 @@ function trouverGroupesDoublons() {
     const cles = [];
     if (p.nom || p.prenom) cles.push(["nom", "n:" + normaliserNomComplet(p)]);
     const t = cleTelephone(p.telephone); if (t) cles.push(["tél", "t:" + t]);
-    const e = (p.email || "").trim().toLowerCase(); if (e.includes("@")) cles.push(["email", "e:" + e]);
+    // Même email : souvent l'adresse d'une agence ou d'un proche qui inscrit plusieurs personnes.
+    // On ne rapproche que si le téléphone ne contredit pas (même téléphone ou pas de téléphone).
+    const e = (p.email || "").trim().toLowerCase(); if (e.includes("@")) cles.push(["email", "e:" + e + "|" + (t || "?")]);
     cles.forEach(([raison, c]) => {
       if (vus[c]) { unir(p.id, vus[c]); raisons[p.id] = (raisons[p.id] || new Set()).add(raison); raisons[vus[c]] = (raisons[vus[c]] || new Set()).add(raison); }
       else vus[c] = p.id;
@@ -780,11 +782,24 @@ function trouverGroupesDoublons() {
   });
   const groupes = {};
   state.personnes.forEach((p) => { const r = racine(p.id); (groupes[r] = groupes[r] || []).push(p); });
-  return Object.values(groupes).filter((g) => g.length > 1).map((g) => {
+  const ignores = lireDoublonsIgnores();
+  return Object.values(groupes).filter((g) => g.length > 1 && !ignores.has(cleGroupe(g))).map((g) => {
     const r = new Set(); g.forEach((p) => (raisons[p.id] || []).forEach((x) => r.add(x)));
     g.sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
     return Object.assign(g, { raisons: [...r], memeNom: new Set(g.map(normaliserNomComplet)).size === 1 });
   });
+}
+// Groupes marqués « personnes différentes » : on ne les propose plus
+function cleGroupe(g) { return g.map((p) => p.id).sort().join(","); }
+function lireDoublonsIgnores() {
+  try { return new Set(JSON.parse(localStorage.getItem("casting-doublons-ignores") || "[]")); } catch (e) { return new Set(); }
+}
+function ignorerGroupeDoublons(gIdx) {
+  const g = state.groupesDoublons[gIdx];
+  const s = lireDoublonsIgnores(); s.add(cleGroupe(g));
+  try { localStorage.setItem("casting-doublons-ignores", JSON.stringify([...s])); } catch (e) {}
+  renderDoublonsReview(trouverGroupesDoublons());
+  majBoutonDoublons();
 }
 function dateFr(d) { return d ? new Date(d).toLocaleDateString("fr-FR") : "?"; }
 // La photo la plus récente : année de la photo d'abord, puis date d'arrivée de la fiche
@@ -842,7 +857,10 @@ function renderDoublonsReview(groupes) {
               </div>
             `).join("")}
           </div>
-          <button type="button" class="btn" style="font-size:12px; margin-top:10px;" onclick="fusionnerDoublons(${gIdx}, -1)">Rassembler (photo la plus récente)</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <button type="button" class="btn secondary" style="font-size:12px;" onclick="ignorerGroupeDoublons(${gIdx})">Ce sont des personnes différentes</button>
+            <button type="button" class="btn" style="font-size:12px;" onclick="fusionnerDoublons(${gIdx}, -1)">Rassembler (photo la plus récente)</button>
+          </div>
         </div>`;
       }).join("")}
     </div>
