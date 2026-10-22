@@ -306,6 +306,7 @@ async function loadPersonnes() {
   if (error) { console.error(error); return; }
   state.personnes = data || [];
   renderPersonnesGrid();
+  majBoutonDoublons();
 }
 
 function renderPersonnesGrid() {
@@ -403,6 +404,11 @@ async function openFicheModal(id) {
     photos.unshift({ id: "principale", fichier_url: p.photo_url, categorie_photo: "portrait" });
   }
   const autresDocs = documents.filter((d) => d.type_document !== "photo");
+  // Galerie dans l'ordre chronologique : on voit l'évolution de la personne
+  const anneeDe = (d) => Number(d.annee_photo || (d.id === "principale" || d.fichier_url === p.photo_url ? p.photo_annee : 0)) || 9999;
+  photos.sort((a, b) => anneeDe(a) - anneeDe(b));
+  const depuis = p.created_at ? new Date(p.created_at) : null;
+  const ansDepuis = depuis ? Math.floor((Date.now() - depuis) / (365.25 * 864e5)) : 0;
 
   const infoLine = (label, val) => val ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br>${esc(val)}</div>` : "";
   const linkLine = (label, url) => url ? `<div style="margin-bottom:6px;"><span style="color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px;">${label}</span><br><a href="${esc(url)}" target="_blank" style="color:var(--accent);">${esc(url)}</a></div>` : "";
@@ -421,6 +427,7 @@ async function openFicheModal(id) {
           <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
           ${photoDateBadge}
         </div>
+        ${depuis ? `<div style="font-size:12px; color:var(--text-muted);">Première demande le ${depuis.toLocaleDateString("fr-FR")}${ansDepuis >= 1 ? ` (il y a ${ansDepuis} an${ansDepuis > 1 ? "s" : ""})` : ""}</div>` : ""}
         <div style="margin-top:10px; font-size:13px; color:var(--text);">
           ${p.taille_cm ? "Taille : " + p.taille_cm + " cm &nbsp;·&nbsp; " : ""}${p.age ? "Âge : " + p.age + " ans" + esc(ageEstimeAujourdhuiTexte(p)) : ""}
           ${p.metier ? `<br>Métier : ${esc(p.metier)}` : ""}
@@ -433,7 +440,7 @@ async function openFicheModal(id) {
 
     ${photos.length ? `
     <fieldset>
-      <legend>Photos (${photos.length}) — clique "Utiliser pour le trombi" pour changer la photo affichée dans le Trombinoscope</legend>
+      <legend>Photos (${photos.length}, de la plus ancienne à la plus récente) — clique "Utiliser pour le trombi" pour changer la photo affichée dans le Trombinoscope</legend>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         ${photos.map((d) => {
           const isCurrent = p.photo_url === d.fichier_url;
@@ -449,6 +456,7 @@ async function openFicheModal(id) {
               <div style="width:100px; height:120px; border-radius:8px; background:var(--surface-2); background-image:url('${esc(d.fichier_url)}'); background-size:contain; background-repeat:no-repeat; background-position:center; ${isCurrent ? "outline:2px solid var(--accent);" : ""}"></div>
             </a>
             <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:4px;">${CAT_PHOTO_LABELS[d.categorie_photo] || "Autre"}</div>
+            ${/^Photo (envoyée|fusionnée)/.test(d.libelle || "") ? `<div style="font-size:10px; color:var(--text-muted); text-align:center;">${esc(d.libelle.replace(/^Photo envoyée /, "Envoyée ").replace(/^Photo fusionnée \(fiche du ([^)]*)\)/, "Envoyée le $1"))}</div>` : ""}
             <input type="number" class="fiche-annee-edit" data-doc-id="${d.id}" data-personne-id="${p.id}" value="${year ?? ""}" placeholder="Année" style="width:100%; text-align:center; font-size:11px; font-weight:700; color:${yearColor}; background:var(--surface-2); border:1px solid var(--border); border-radius:5px; padding:2px 0; margin-top:2px;">
             ${isCurrent
               ? `<div style="font-size:10px; color:var(--accent); text-align:center; margin-top:2px;">Photo trombi actuelle</div>`
@@ -740,110 +748,201 @@ document.getElementById("btn-recherche-intelligente-personnes").addEventListener
 });
 
 // ==========================================================
-// DOUBLONS (détection + fusion, en conservant toutes les photos datées)
+// DOUBLONS : même personne inscrite plusieurs fois
+// (même nom + prénom, ou même téléphone, ou même email)
+// La fiche fusionnée garde la photo la plus récente pour le trombi,
+// les anciennes photos datées dans sa galerie, et la date de la toute première demande.
 // ==========================================================
 function normaliserNomComplet(p) {
-  const enlever = (s) => (s || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const enlever = (s) => (s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[\s\-']+/g, " ");
   return `${enlever(p.nom)}|${enlever(p.prenom)}`;
+}
+function cleTelephone(t) {
+  const c = String(t || "").replace(/\D/g, "");
+  return c.length >= 9 ? c.slice(-9) : "";
+}
+function trouverGroupesDoublons() {
+  const parent = {};
+  const racine = (id) => { while (parent[id] !== id) { parent[id] = parent[parent[id]]; id = parent[id]; } return id; };
+  const unir = (a, b) => { parent[racine(a)] = racine(b); };
+  const vus = {};
+  const raisons = {};
+  state.personnes.forEach((p) => { parent[p.id] = p.id; });
+  state.personnes.forEach((p) => {
+    const cles = [];
+    if (p.nom || p.prenom) cles.push(["nom", "n:" + normaliserNomComplet(p)]);
+    const t = cleTelephone(p.telephone); if (t) cles.push(["tél", "t:" + t]);
+    const e = (p.email || "").trim().toLowerCase(); if (e.includes("@")) cles.push(["email", "e:" + e]);
+    cles.forEach(([raison, c]) => {
+      if (vus[c]) { unir(p.id, vus[c]); raisons[p.id] = (raisons[p.id] || new Set()).add(raison); raisons[vus[c]] = (raisons[vus[c]] || new Set()).add(raison); }
+      else vus[c] = p.id;
+    });
+  });
+  const groupes = {};
+  state.personnes.forEach((p) => { const r = racine(p.id); (groupes[r] = groupes[r] || []).push(p); });
+  return Object.values(groupes).filter((g) => g.length > 1).map((g) => {
+    const r = new Set(); g.forEach((p) => (raisons[p.id] || []).forEach((x) => r.add(x)));
+    g.sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+    return Object.assign(g, { raisons: [...r], memeNom: new Set(g.map(normaliserNomComplet)).size === 1 });
+  });
+}
+function dateFr(d) { return d ? new Date(d).toLocaleDateString("fr-FR") : "?"; }
+// La photo la plus récente : année de la photo d'abord, puis date d'arrivée de la fiche
+function ficheAvecPhotoLaPlusRecente(groupe) {
+  const avecPhoto = groupe.filter((p) => p.photo_url);
+  if (!avecPhoto.length) return groupe[groupe.length - 1];
+  return avecPhoto.slice().sort((a, b) => (Number(b.photo_annee) || 0) - (Number(a.photo_annee) || 0) || String(b.created_at || "").localeCompare(String(a.created_at || "")))[0];
+}
+function majBoutonDoublons() {
+  const b = document.getElementById("btn-detecter-doublons");
+  if (!b) return;
+  const n = trouverGroupesDoublons().length;
+  b.textContent = n ? `Rassembler les doublons (${n})` : "Rassembler les doublons";
 }
 
 document.getElementById("btn-detecter-doublons").addEventListener("click", () => {
-  const groupes = {};
-  state.personnes.forEach((p) => {
-    if (!p.nom && !p.prenom) return;
-    const cle = normaliserNomComplet(p);
-    if (!groupes[cle]) groupes[cle] = [];
-    groupes[cle].push(p);
-  });
-  const doublons = Object.values(groupes).filter((g) => g.length > 1);
-  renderDoublonsReview(doublons);
+  const c = document.getElementById("doublons-review");
+  if (c.style.display === "block" && c.dataset.ouvert === "1") { c.style.display = "none"; c.dataset.ouvert = ""; return; }
+  renderDoublonsReview(trouverGroupesDoublons());
 });
 
 function renderDoublonsReview(groupes) {
   const container = document.getElementById("doublons-review");
+  container.style.display = "block";
+  container.dataset.ouvert = "1";
+  state.groupesDoublons = groupes;
   if (!groupes.length) {
-    container.style.display = "block";
-    container.innerHTML = `<div class="filter-panel">Aucun doublon détecté (même nom + prénom).</div>`;
+    container.innerHTML = `<div class="filter-panel">Aucun doublon : chaque personne n'a qu'une fiche.</div>`;
     return;
   }
-  container.style.display = "block";
   container.innerHTML = `
     <div class="filter-panel">
-      <div style="font-weight:700; margin-bottom:10px;">${groupes.length} groupe(s) de doublons détecté(s) (même nom + prénom, comparaison insensible aux accents/majuscules).</div>
-      <div style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">Pour chaque groupe, choisis quelle fiche garder comme fiche principale — les photos et documents des autres fiches du groupe seront automatiquement ajoutés à sa galerie (avec leur date d'origine conservée), rien n'est perdu, puis les fiches en trop sont supprimées.</div>
-      ${groupes.map((groupe, gIdx) => `
+      <div style="font-weight:700; margin-bottom:6px;">${groupes.length} personne(s) inscrite(s) plusieurs fois</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">En rassemblant, l'appli garde une seule fiche : la photo la plus récente devient la photo du trombi, les anciennes photos restent dans la galerie avec leur date (pour voir l'évolution), et la fiche garde la date de la toute première demande. Coordonnées, documents, CV et rôles attribués sont regroupés, rien n'est perdu.</div>
+      ${groupes.some((g) => g.memeNom) ? `<button type="button" class="btn" id="btn-fusion-tout" style="margin-bottom:6px;" onclick="fusionnerTousLesDoublons()">${(() => { const n = groupes.filter((g) => g.memeNom).length; return n > 1 ? `Rassembler automatiquement les ${n} personnes au même nom` : "Rassembler automatiquement la personne au même nom"; })()}</button>` : ""}
+      ${groupes.some((g) => !g.memeNom) ? `<div style="font-size:12px; color:#E0A030; margin-bottom:12px;">${groupes.filter((g) => !g.memeNom).length} groupe(s) aux noms différents mais même téléphone ou email : à vérifier un par un (frères et sœurs avec le téléphone d'un parent, par exemple).</div>` : ""}
+      <div id="fusion-statut" style="font-size:13px; margin-bottom:10px;"></div>
+      ${groupes.map((groupe, gIdx) => {
+        const recente = ficheAvecPhotoLaPlusRecente(groupe);
+        return `
         <div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px;">
-          <div style="font-weight:700; margin-bottom:8px;">${esc(groupe[0].prenom)} ${esc(groupe[0].nom)} — ${groupe.length} fiches</div>
+          <div style="font-weight:700;">${esc(recente.prenom)} ${esc(recente.nom)} — ${groupe.length} fiches</div>
+          ${groupe.memeNom ? "" : `<div style="font-size:12px; color:#E0A030;">Noms différents : vérifiez que c'est bien la même personne avant de rassembler.</div>`}
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Repérées par : ${groupe.raisons.map((r) => r === "nom" ? "même nom" : r === "tél" ? "même téléphone" : "même email").join(", ")} · première demande le ${dateFr(groupe[0].created_at)}</div>
           <div style="display:flex; gap:12px; flex-wrap:wrap;">
             ${groupe.map((p, pIdx) => `
-              <div style="width:150px; border:1px solid var(--border); border-radius:6px; padding:8px; text-align:center;">
+              <div style="width:150px; border:1px solid ${p === recente ? "var(--accent)" : "var(--border)"}; border-radius:6px; padding:8px; text-align:center;">
                 ${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%; aspect-ratio:3/4; object-fit:contain; background:var(--surface-2); border-radius:4px;">` : `<div style="width:100%; aspect-ratio:3/4; background:var(--surface-2); border-radius:4px;"></div>`}
-                <div style="font-size:11px; font-weight:700; margin-top:4px; color:${p.photo_annee ? "var(--accent)" : "var(--text-muted)"};">${p.photo_annee ? "Photo " + p.photo_annee : "Année inconnue"}</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${p.telephone ? esc(p.telephone) : "(pas de tél)"}</div>
-                <div style="font-size:10px; color:var(--text-muted);">${p.created_at ? "Ajoutée le " + new Date(p.created_at).toLocaleDateString("fr-FR") : ""}</div>
-                <button type="button" class="btn secondary" style="font-size:11px; margin-top:6px; width:100%;" onclick="fusionnerDoublons(${gIdx}, ${pIdx})">Garder celle-ci</button>
+                <div style="font-size:12px; font-weight:700; margin-top:4px;">${esc(p.prenom)} ${esc(p.nom)}</div>
+                <div style="font-size:11px; font-weight:700; color:${p.photo_annee ? "var(--accent)" : "var(--text-muted)"};">${p.photo_annee ? "Photo " + p.photo_annee : "Année inconnue"}</div>
+                <div style="font-size:11px; color:var(--text-muted);">${p.telephone ? esc(p.telephone) : "(pas de tél)"}</div>
+                <div style="font-size:10px; color:var(--text-muted);">Arrivée le ${dateFr(p.created_at)}</div>
+                ${p === recente ? `<div style="font-size:10px; color:var(--accent); margin-top:4px;">Photo la plus récente</div>` : ""}
+                <button type="button" class="btn secondary" style="font-size:11px; margin-top:6px; width:100%;" onclick="fusionnerDoublons(${gIdx}, ${pIdx})">Garder cette photo</button>
               </div>
             `).join("")}
           </div>
-        </div>
-      `).join("")}
+          <button type="button" class="btn" style="font-size:12px; margin-top:10px;" onclick="fusionnerDoublons(${gIdx}, -1)">Rassembler (photo la plus récente)</button>
+        </div>`;
+      }).join("")}
     </div>
   `;
-  state.groupesDoublons = groupes;
 }
 
-async function fusionnerDoublons(groupeIdx, primaireIdx) {
-  const groupe = state.groupesDoublons[groupeIdx];
-  const primaire = groupe[primaireIdx];
-  const autres = groupe.filter((_, i) => i !== primaireIdx);
-  if (!confirm(`Garder la fiche de ${primaire.prenom} ${primaire.nom} (${primaire.photo_annee || "année inconnue"}) et fusionner les ${autres.length} autre(s) dedans ? Les photos des autres fiches seront ajoutées à sa galerie avant suppression.`)) return;
+// Fusionne un groupe. idxPhoto = fiche dont la photo devient la photo du trombi (-1 : la plus récente)
+async function fusionnerGroupe(groupe, idxPhoto) {
+  const parAnciennete = groupe.slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+  const plusRecentes = parAnciennete.slice().reverse();
+  const choix = idxPhoto >= 0 ? groupe[idxPhoto] : ficheAvecPhotoLaPlusRecente(groupe);
+  const primaire = choix;
+  const autres = groupe.filter((p) => p !== primaire);
 
-  const champsAFusionner = ["telephone", "email", "adresse", "age", "taille_cm", "poids_kg", "genre", "date_naissance",
+  const champsAFusionner = ["telephone", "email", "adresse", "age", "taille_cm", "poids_kg", "pointure", "tour_taille", "tour_poitrine",
+    "couleur_yeux", "couleur_cheveux", "morphologie", "genre", "date_naissance",
     "metier", "competences_particulieres", "signes_particuliers", "permis_conduire", "types_permis", "langues",
     "lien_instagram", "lien_showreel", "lien_site_web", "agence", "experience_parcours", "iban", "bic",
     "lieu_naissance", "nationalite", "num_secu_sociale", "situation_familiale", "nb_enfants_charge",
     "nom_jeune_fille", "centre_secu_sociale", "personne_a_prevenir", "parent_nom", "parent_prenom",
     "parent_telephone", "parent_email", "parent_profession", "parent_notes"];
-
+  const vide = (v) => v === null || v === undefined || v === "" || v === false;
   const maj = {};
+  // Les informations les plus récentes priment (mensurations, téléphone qui a changé…)
   for (const champ of champsAFusionner) {
-    if ((primaire[champ] === null || primaire[champ] === undefined || primaire[champ] === "") ) {
-      const source = autres.find((a) => a[champ] !== null && a[champ] !== undefined && a[champ] !== "");
-      if (source) maj[champ] = source[champ];
-    }
+    if (!(champ in primaire) && !groupe.some((g) => champ in g)) continue;
+    const src = vide(primaire[champ]) ? plusRecentes.find((a) => !vide(a[champ])) : null;
+    if (src) maj[champ] = src[champ];
   }
-  // Fusion des notes (concaténation, pour ne rien perdre)
-  const notesAutres = autres.map((a) => a.notes).filter(Boolean);
-  if (notesAutres.length) {
-    maj.notes = [primaire.notes, ...notesAutres].filter(Boolean).join("\n---\n");
-  }
+  const types = new Set(groupe.map((p) => p.type_personne));
+  if (types.size > 1) maj.type_personne = "comedien_figurant";
+  const notes = parAnciennete.map((a) => a.notes).filter(Boolean);
+  // Anciennes coordonnées gardées dans les notes
+  const telP = cleTelephone(maj.telephone || primaire.telephone), mailP = String(maj.email || primaire.email || "").toLowerCase();
+  const anciens = [];
+  autres.forEach((a) => {
+    if (a.telephone && cleTelephone(a.telephone) !== telP) anciens.push("Ancien téléphone : " + a.telephone);
+    if (a.email && a.email.toLowerCase() !== mailP) anciens.push("Ancien email : " + a.email);
+  });
+  if (anciens.length) notes.push([...new Set(anciens)].join("\n"));
+  const notesJ = [...new Set(notes)].join("\n---\n");
+  if (notesJ && notesJ !== (primaire.notes || "")) maj.notes = notesJ;
+  // Date de la toute première demande
+  if (parAnciennete[0] !== primaire && parAnciennete[0].created_at) maj.created_at = parAnciennete[0].created_at;
+  maj.updated_at = new Date().toISOString();
 
-  if (Object.keys(maj).length) {
-    await sb.from("personnes").update(maj).eq("id", primaire.id);
-  }
+  const { data: docsExistants } = await sb.from("documents_personne").select("id, fichier_url, personne_id").in("personne_id", groupe.map((p) => p.id));
+  const cle = (u) => { const c = cheminDepuisUrl(u); return c ? c.cle : (u || ""); };
+  const urlsExistantes = new Set((docsExistants || []).map((d) => cle(d.fichier_url)));
+
+  const { error: errMaj } = await sb.from("personnes").update(maj).eq("id", primaire.id);
+  if (errMaj) throw errMaj;
 
   for (const autre of autres) {
-    // La photo principale de la fiche à supprimer devient une photo de galerie sur la fiche gardée
-    if (autre.photo_url) {
+    if (autre.photo_url && cle(autre.photo_url) !== cle(primaire.photo_url) && !urlsExistantes.has(cle(autre.photo_url))) {
+      const premiere = autre === parAnciennete[0];
       await sb.from("documents_personne").insert({
         personne_id: primaire.id,
         type_document: "photo",
-        categorie_photo: "autre",
-        annee_photo: autre.photo_annee || null,
-        libelle: `Photo fusionnée (fiche du ${autre.created_at ? new Date(autre.created_at).toLocaleDateString("fr-FR") : "?"})`,
+        categorie_photo: "portrait",
+        annee_photo: autre.photo_annee || (autre.created_at ? new Date(autre.created_at).getFullYear() : null),
+        libelle: `Photo envoyée le ${dateFr(autre.created_at)}${premiere ? " (première demande)" : ""}`,
         fichier_url: autre.photo_url,
       });
     }
-    // Les documents déjà existants (CV, autres photos...) sont transférés vers la fiche gardée
     await sb.from("documents_personne").update({ personne_id: primaire.id }).eq("personne_id", autre.id);
-    // Suppression de la fiche en trop
-    await sb.from("personnes").delete().eq("id", autre.id);
+    await sb.from("depouillement_roles").update({ personne_id: primaire.id }).eq("personne_id", autre.id);
+    const { error } = await sb.from("personnes").delete().eq("id", autre.id);
+    if (error) throw error;
   }
+}
 
+async function fusionnerDoublons(groupeIdx, idxPhoto) {
+  const groupe = state.groupesDoublons[groupeIdx];
+  const choix = idxPhoto >= 0 ? groupe[idxPhoto] : ficheAvecPhotoLaPlusRecente(groupe);
+  if (!confirm(`Rassembler les ${groupe.length} fiches de ${choix.prenom} ${choix.nom} en une seule ?\n\nPhoto du trombi : ${choix.photo_annee || "année inconnue"}. Les autres photos restent dans la galerie avec leur date.`)) return;
+  try {
+    await fusionnerGroupe(groupe, idxPhoto);
+  } catch (err) { alert("Erreur pendant la fusion : " + (err.message || err)); }
   await loadPersonnes();
-  // Retire ce groupe de la liste affichée et redessine
-  state.groupesDoublons.splice(groupeIdx, 1);
-  renderDoublonsReview(state.groupesDoublons);
+  renderDoublonsReview(trouverGroupesDoublons());
+}
+
+async function fusionnerTousLesDoublons() {
+  // Seulement les fiches au nom identique : un même téléphone peut être celui d'un parent de plusieurs enfants
+  const groupes = (state.groupesDoublons || []).filter((g) => g.memeNom);
+  if (!groupes.length) return;
+  if (!confirm(`Rassembler automatiquement les ${groupes.length} personnes en double ?\n\nPour chacune : la photo la plus récente devient la photo du trombi, les anciennes restent dans la galerie avec leur date, et la fiche garde la date de la première demande.`)) return;
+  const statut = document.getElementById("fusion-statut");
+  const bouton = document.getElementById("btn-fusion-tout");
+  if (bouton) bouton.disabled = true;
+  let ok = 0, ko = 0;
+  for (let i = 0; i < groupes.length; i++) {
+    if (statut) statut.innerHTML = `<span class="spinner"></span> ${i + 1} / ${groupes.length}…`;
+    try { await fusionnerGroupe(groupes[i], -1); ok++; } catch (e) { console.error(e); ko++; }
+  }
+  await loadPersonnes();
+  renderDoublonsReview(trouverGroupesDoublons());
+  const s2 = document.getElementById("fusion-statut");
+  if (s2) s2.innerHTML = `<b>${ok} personne(s) rassemblée(s).</b>${ko ? ` ${ko} erreur(s), réessayez.` : ""}`;
 }
 
 // ==========================================================
