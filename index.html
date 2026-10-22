@@ -80,6 +80,7 @@
   body.kiosk-active .subtabs-bar{ display:none !important; }
   body.kiosk-active #tab-depouillement > .jour-select-bar{ display:none !important; }
   body.kiosk-active #subtab-documents, body.kiosk-active #subtab-casting, body.kiosk-active #subtab-liste-jour{ display:none !important; }
+  body.kiosk-active #btn-stockage{ display:none !important; }
   body.kiosk-active .app-header .subtitle::after{ content:" — Accès HMC restreint"; }
 
   main{ padding:20px; max-width:1400px; margin:0 auto; }
@@ -234,7 +235,8 @@
     <h1>Casting &amp; Figuration</h1>
     <div class="subtitle">LEDR2 — Comédiens, figurants &amp; préparation HMC</div>
   </div>
-  <button id="btn-deconnexion" class="no-print" onclick="deconnexionCasting()">Se déconnecter</button>
+  <button id="btn-stockage" class="no-print" onclick="ouvrirStockage()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">Espace de stockage</button>
+  <button id="btn-deconnexion" class="no-print" onclick="deconnexionCasting()" style="margin-left:8px">Se déconnecter</button>
 </header>
 
 <nav class="tabs">

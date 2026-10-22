@@ -4284,6 +4284,131 @@ function initKioskModeIfNeeded() {
 // ==========================================================
 // INIT
 // ==========================================================
+
+// ==========================================================
+// ESPACE DE STOCKAGE : fichiers orphelins et compression des photos
+// ==========================================================
+const TABLES_CASTING = ["personnes", "documents_personne", "depouillement_jours", "depouillement_roles", "hmc_checklist", "films", "film_documents"];
+let analyseStockage = null;
+function moStockage(octets) { return (octets / 1024 / 1024).toFixed(octets < 10 * 1024 * 1024 ? 1 : 0).replace(".", ","); }
+async function listerTousFichiers() {
+  const fichiers = [];
+  async function parcourir(dossier) {
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await sb.storage.from(BUCKET).list(dossier, { limit: 1000, offset, sortBy: { column: "name", order: "asc" } });
+      if (error) throw error;
+      for (const it of data || []) {
+        const chemin = dossier ? dossier + "/" + it.name : it.name;
+        if (!it.id) await parcourir(chemin); // sous-dossier
+        else fichiers.push({ chemin, taille: (it.metadata && it.metadata.size) || 0, type: (it.metadata && it.metadata.mimetype) || "", modifie: it.updated_at || it.created_at });
+      }
+      if (!data || data.length < 1000) break;
+    }
+  }
+  await parcourir("");
+  return fichiers;
+}
+async function texteDeToutesLesTables() {
+  let morceaux = [];
+  for (const t of TABLES_CASTING) {
+    for (let debut = 0; ; debut += 1000) {
+      const { data, error } = await sb.from(t).select("*").range(debut, debut + 999);
+      if (error) throw new Error(t + " : " + error.message);
+      morceaux.push(JSON.stringify(versFormatEnregistre(data || [])));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return morceaux.join("\n");
+}
+function ouvrirStockage() {
+  openModal(`
+    <h2 style="margin-top:0">Espace de stockage</h2>
+    <p style="color:var(--text-muted);font-size:13px">Le forfait gratuit autorise 1 Go de fichiers. Ici, vous pouvez supprimer les fichiers qui ne sont plus rattachés à aucune fiche, et alléger les photos trop lourdes sans changer leur aspect. Rien n'est supprimé ni modifié sans votre confirmation.</p>
+    <div id="stockage-zone"><button class="btn" onclick="analyserStockage()">Analyser l'espace</button></div>
+    <div style="margin-top:14px;text-align:right"><button class="btn" onclick="closeModal()">Fermer</button></div>`);
+}
+async function analyserStockage() {
+  const z = document.getElementById("stockage-zone");
+  z.innerHTML = "Analyse en cours… (cela peut prendre une minute)";
+  try {
+    const [fichiers, texte] = await Promise.all([listerTousFichiers(), texteDeToutesLesTables()]);
+    const ilYa24h = Date.now() - 24 * 3600 * 1000;
+    const orphelins = [], photosLourdes = [];
+    let total = 0;
+    fichiers.forEach((f) => {
+      total += f.taille;
+      const utilise = texte.includes("/casting-media/" + f.chemin) || texte.includes(f.chemin);
+      const recent = f.modifie && new Date(f.modifie).getTime() > ilYa24h;
+      if (!utilise && !recent) orphelins.push(f);
+      else if (utilise && /^image\/(jpeg|png|webp)$/i.test(f.type) && f.taille > 400 * 1024) photosLourdes.push(f);
+    });
+    const tailleOrph = orphelins.reduce((s, f) => s + f.taille, 0);
+    const tailleLourdes = photosLourdes.reduce((s, f) => s + f.taille, 0);
+    analyseStockage = { orphelins, photosLourdes };
+    z.innerHTML = `
+      <div style="font-size:14px;line-height:1.7">
+        <div><b>${fichiers.length}</b> fichiers, <b>${moStockage(total)} Mo</b> au total</div>
+        <div style="margin-top:10px"><b>${orphelins.length}</b> fichiers orphelins (rattachés à aucune fiche) : <b>${moStockage(tailleOrph)} Mo</b></div>
+        ${orphelins.length ? `<details style="font-size:12px;color:var(--text-muted)"><summary>Voir la liste</summary>${orphelins.slice(0, 500).map((f) => esc(f.chemin) + " — " + moStockage(f.taille) + " Mo").join("<br>")}</details>
+        <button class="btn" style="margin-top:6px" onclick="supprimerOrphelins()">Supprimer ces ${orphelins.length} fichiers (${moStockage(tailleOrph)} Mo)</button>` : ""}
+        <div style="margin-top:14px"><b>${photosLourdes.length}</b> photos de plus de 400 Ko : <b>${moStockage(tailleLourdes)} Mo</b></div>
+        ${photosLourdes.length ? `<div style="font-size:12px;color:var(--text-muted)">Elles seront redimensionnées (1 600 pixels maximum) et recompressées en JPEG de bonne qualité. Leur adresse ne change pas : les fiches et le trombinoscope restent identiques.</div>
+        <button class="btn" style="margin-top:6px" onclick="compresserPhotos()">Compresser ces ${photosLourdes.length} photos</button>` : ""}
+        <div id="stockage-progres" style="margin-top:12px;font-size:13px"></div>
+      </div>`;
+  } catch (e) {
+    z.innerHTML = `<div style="color:var(--red)">Analyse impossible : ${esc(e.message || String(e))}</div><button class="btn" onclick="analyserStockage()">Réessayer</button>`;
+  }
+}
+async function supprimerOrphelins() {
+  const liste = (analyseStockage && analyseStockage.orphelins) || [];
+  if (!liste.length) return;
+  if (!confirm(`Supprimer définitivement ${liste.length} fichiers qui ne sont rattachés à aucune fiche ?\n\nLes fiches, photos et documents utilisés ne sont pas touchés.`)) return;
+  const p = document.getElementById("stockage-progres");
+  let fait = 0, erreurs = 0;
+  for (let i = 0; i < liste.length; i += 100) {
+    const lot = liste.slice(i, i + 100).map((f) => f.chemin);
+    const { error } = await sb.storage.from(BUCKET).remove(lot);
+    if (error) erreurs += lot.length; else fait += lot.length;
+    p.textContent = `Suppression : ${fait} / ${liste.length}…`;
+  }
+  p.innerHTML = `<b>${fait} fichiers supprimés.</b>` + (erreurs ? ` <span style="color:var(--red)">${erreurs} n'ont pas pu l'être.</span>` : "") + " Relancez l'analyse pour voir le nouvel espace.";
+  analyseStockage.orphelins = [];
+}
+async function recompresser(blob, maxDim = 1600, qualite = 0.82) {
+  const bmp = await createImageBitmap(blob);
+  const ratio = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * ratio), h = Math.round(bmp.height * ratio);
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  if (bmp.close) bmp.close();
+  return await new Promise((res) => c.toBlob(res, "image/jpeg", qualite));
+}
+async function compresserPhotos() {
+  const liste = (analyseStockage && analyseStockage.photosLourdes) || [];
+  if (!liste.length) return;
+  if (!confirm(`Compresser ${liste.length} photos ?\n\nElles restent visibles aux mêmes endroits, avec un poids bien plus léger. L'opération peut prendre plusieurs minutes : gardez cette page ouverte.`)) return;
+  const p = document.getElementById("stockage-progres");
+  let gagne = 0, fait = 0, ignorees = 0;
+  for (const f of liste) {
+    try {
+      const { data: blob, error } = await sb.storage.from(BUCKET).download(f.chemin);
+      if (error || !blob) { ignorees++; continue; }
+      const nouveau = await recompresser(blob);
+      if (!nouveau || nouveau.size > blob.size * 0.85) { ignorees++; continue; }
+      const { error: e2 } = await sb.storage.from(BUCKET).upload(f.chemin, nouveau, { upsert: true, contentType: "image/jpeg" });
+      if (e2) { ignorees++; continue; }
+      gagne += blob.size - nouveau.size; fait++;
+    } catch (e) { ignorees++; }
+    p.textContent = `Compression : ${fait + ignorees} / ${liste.length} — ${moStockage(gagne)} Mo gagnés…`;
+  }
+  p.innerHTML = `<b>${fait} photos compressées, ${moStockage(gagne)} Mo gagnés.</b>` + (ignorees ? ` (${ignorees} laissées telles quelles.)` : "") + " Relancez l'analyse pour voir le nouvel espace.";
+  analyseStockage.photosLourdes = [];
+}
+
 // ==========================================================
 // CONNEXION (accès réservé)
 // ==========================================================
