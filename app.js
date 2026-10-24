@@ -771,10 +771,13 @@ function trouverGroupesDoublons() {
   state.personnes.forEach((p) => {
     const cles = [];
     if (p.nom || p.prenom) cles.push(["nom", "n:" + normaliserNomComplet(p)]);
-    const t = cleTelephone(p.telephone); if (t) cles.push(["tél", "t:" + t]);
+    // Même téléphone ou même email : seulement si le prénom est le même.
+    // Frères, sœurs et jumeaux inscrits avec le téléphone d'un parent ne sont donc jamais rapprochés.
+    const prenomCle = (p.prenom || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s\-']+/g, " ");
+    const t = cleTelephone(p.telephone); if (t && prenomCle) cles.push(["tél", "t:" + t + "|" + prenomCle]);
     // Même email : souvent l'adresse d'une agence ou d'un proche qui inscrit plusieurs personnes.
     // On ne rapproche que si le téléphone ne contredit pas (même téléphone ou pas de téléphone).
-    const e = (p.email || "").trim().toLowerCase(); if (e.includes("@")) cles.push(["email", "e:" + e + "|" + (t || "?")]);
+    const e = (p.email || "").trim().toLowerCase(); if (e.includes("@")) cles.push(["email", "e:" + e + "|" + (t || "?") + "|" + prenomCle]);
     cles.forEach(([raison, c]) => {
       if (vus[c]) { unir(p.id, vus[c]); raisons[p.id] = (raisons[p.id] || new Set()).add(raison); raisons[vus[c]] = (raisons[vus[c]] || new Set()).add(raison); }
       else vus[c] = p.id;
@@ -858,7 +861,7 @@ function renderDoublonsReview(groupes) {
             `).join("")}
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <button type="button" class="btn secondary" style="font-size:12px;" onclick="ignorerGroupeDoublons(${gIdx})">Ce sont des personnes différentes</button>
+            <button type="button" class="btn secondary" style="font-size:12px;" onclick="ignorerGroupeDoublons(${gIdx})">Garder les deux fiches (personnes différentes)</button>
             <button type="button" class="btn" style="font-size:12px;" onclick="fusionnerDoublons(${gIdx}, -1)">Rassembler (photo la plus récente)</button>
           </div>
         </div>`;
