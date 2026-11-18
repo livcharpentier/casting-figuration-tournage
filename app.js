@@ -10,6 +10,9 @@ window.addEventListener("drop", (e) => e.preventDefault());
 
 const SUPABASE_URL = "https://ljregtoosrhetgocvrkg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxqcmVndG9vc3JoZXRnb2N2cmtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMjc5NDAsImV4cCI6MjA5MjkwMzk0MH0.Ij9HGLABdcC2sF4iNiEo8tDJKUrIIlaueniYo2ESOA4";
+// Lien « mot de passe oublié » reçu par mail : à repérer avant que Supabase ne lise l'adresse
+const LIEN_REINIT = /type=recovery/.test(location.hash);
+const ERREUR_LIEN = /error_description=/.test(location.hash);
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const BUCKET = "casting-media";
 
@@ -4567,8 +4570,42 @@ async function deconnexionCasting() {
   location.reload();
 }
 
+// Mot de passe oublié : envoi du lien par mail
+async function motDePasseOublie() {
+  const err = document.getElementById("login-err");
+  const email = document.getElementById("login-email").value.trim();
+  if (!email) { err.textContent = "Tapez d'abord votre adresse e-mail ci-dessus."; return; }
+  err.textContent = "Envoi…";
+  await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  err.textContent = "Si cette adresse a un compte, un e-mail vient d'être envoyé (pensez aux indésirables).";
+}
+
+// Choix du nouveau mot de passe après clic sur le lien reçu
+function afficherNouveauMdp() {
+  document.body.classList.add("non-connecte");
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("login-form").style.display = "none";
+  document.getElementById("reset-form").style.display = "block";
+}
+async function validerNouveauMdp() {
+  const err = document.getElementById("reset-err");
+  const m1 = document.getElementById("reset-password").value;
+  const m2 = document.getElementById("reset-password2").value;
+  if (m1.length < 8) { err.textContent = "Le mot de passe doit faire au moins 8 caractères."; return; }
+  if (m1 !== m2) { err.textContent = "Les deux mots de passe ne sont pas identiques."; return; }
+  err.textContent = "Enregistrement…";
+  const { error } = await sb.auth.updateUser({ password: m1 });
+  if (error) { err.textContent = "Impossible d'enregistrer : le lien a peut-être expiré. Redemandez-en un."; return; }
+  history.replaceState(null, "", location.pathname + location.search);
+  document.getElementById("reset-form").style.display = "none";
+  document.getElementById("login-form").style.display = "block";
+  demarrerAppli();
+}
+sb.auth.onAuthStateChange((evt) => { if (evt === "PASSWORD_RECOVERY") afficherNouveauMdp(); });
+
 (async function init() {
   const { data } = await sb.auth.getSession();
+  if (LIEN_REINIT) { afficherNouveauMdp(); return; }
   if (data && data.session) demarrerAppli();
-  else afficherConnexion();
+  else afficherConnexion(ERREUR_LIEN ? "Ce lien n'est plus valable. Redemandez-en un avec « Mot de passe oublié ? »." : "");
 })();

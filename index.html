@@ -51,6 +51,7 @@
   #login-screen .mdp-ligne{ display:flex; gap:8px; margin-bottom:10px; }
   #login-screen .mdp-ligne input{ margin-bottom:0; flex:1; min-width:0; }
   #login-screen button.mdp-voir{ width:auto; flex:none; padding:0 12px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); font-weight:500; font-size:13px; }
+  #login-screen button.lien-oubli{ background:none; color:var(--text-muted); font-weight:500; font-size:13px; padding:10px 0 0; text-decoration:underline; }
   #login-screen .login-err{ color:var(--red); font-size:13px; min-height:18px; margin-top:8px; }
   body.non-connecte > *:not(#login-screen){ display:none !important; }
   #btn-deconnexion{ margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
@@ -223,7 +224,7 @@
 <body class="non-connecte">
 
 <div id="login-screen" style="display:none">
-  <form class="login-box" onsubmit="event.preventDefault(); connexionCasting();">
+  <form id="login-form" class="login-box" onsubmit="event.preventDefault(); connexionCasting();">
     <h2>Casting &amp; Figuration</h2>
     <p>Accès réservé. Connectez-vous avec le même compte que l'appli Responsable Enfants.</p>
     <input id="login-email" type="email" autocomplete="username" placeholder="E-mail" required>
@@ -232,7 +233,22 @@
       <button type="button" class="mdp-voir" onclick="var i=document.getElementById('login-password');var v=i.type==='password';i.type=v?'text':'password';this.textContent=v?'Masquer':'Afficher';this.setAttribute('aria-pressed',v)" aria-label="Afficher le mot de passe" aria-pressed="false">Afficher</button>
     </div>
     <button id="login-btn" type="submit">Se connecter</button>
+    <button type="button" class="lien-oubli" onclick="motDePasseOublie()">Mot de passe oublié ?</button>
     <div class="login-err" id="login-err"></div>
+  </form>
+  <form id="reset-form" class="login-box" style="display:none" onsubmit="event.preventDefault(); validerNouveauMdp();">
+    <h2>Nouveau mot de passe</h2>
+    <p>Choisissez votre nouveau mot de passe (8 caractères minimum). Il servira aussi pour l'appli Responsable Enfants.</p>
+    <div class="mdp-ligne">
+      <input id="reset-password" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe" required>
+      <button type="button" class="mdp-voir" onclick="var i=document.getElementById('reset-password');var v=i.type==='password';i.type=v?'text':'password';this.textContent=v?'Masquer':'Afficher'">Afficher</button>
+    </div>
+    <div class="mdp-ligne">
+      <input id="reset-password2" type="password" autocomplete="new-password" placeholder="Confirmez le mot de passe" required>
+      <button type="button" class="mdp-voir" onclick="var i=document.getElementById('reset-password2');var v=i.type==='password';i.type=v?'text':'password';this.textContent=v?'Masquer':'Afficher'">Afficher</button>
+    </div>
+    <button type="submit">Enregistrer</button>
+    <div class="login-err" id="reset-err"></div>
   </form>
 </div>
 <header class="app-header">
