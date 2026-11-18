@@ -48,6 +48,9 @@
   #login-screen p{ margin:0 0 16px; color:var(--text-muted); font-size:13px; }
   #login-screen input{ width:100%; padding:11px 12px; margin-bottom:10px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:15px; }
   #login-screen button{ width:100%; padding:12px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; font-size:15px; cursor:pointer; }
+  #login-screen .mdp-ligne{ display:flex; gap:8px; margin-bottom:10px; }
+  #login-screen .mdp-ligne input{ margin-bottom:0; flex:1; min-width:0; }
+  #login-screen button.mdp-voir{ width:auto; flex:none; padding:0 12px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); font-weight:500; font-size:13px; }
   #login-screen .login-err{ color:var(--red); font-size:13px; min-height:18px; margin-top:8px; }
   body.non-connecte > *:not(#login-screen){ display:none !important; }
   #btn-deconnexion{ margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
@@ -224,7 +227,10 @@
     <h2>Casting &amp; Figuration</h2>
     <p>Accès réservé. Connectez-vous avec le même compte que l'appli Responsable Enfants.</p>
     <input id="login-email" type="email" autocomplete="username" placeholder="E-mail" required>
-    <input id="login-password" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+    <div class="mdp-ligne">
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+      <button type="button" class="mdp-voir" onclick="var i=document.getElementById('login-password');var v=i.type==='password';i.type=v?'text':'password';this.textContent=v?'Masquer':'Afficher';this.setAttribute('aria-pressed',v)" aria-label="Afficher le mot de passe" aria-pressed="false">Afficher</button>
+    </div>
     <button id="login-btn" type="submit">Se connecter</button>
     <div class="login-err" id="login-err"></div>
   </form>
