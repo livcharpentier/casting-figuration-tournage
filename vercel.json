@@ -3,8 +3,17 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
       ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/reveil",
+      "schedule": "23 7 * * 1,4"
     }
   ]
 }
