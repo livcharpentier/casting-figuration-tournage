@@ -1590,6 +1590,7 @@ function personneFormFields(p = {}) {
     <div id="ai-extract-results" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:10px 12px; font-size:13px;"></div>
   </div>
 
+  <div id="doublon-alerte" style="display:none; margin:10px 0; background:rgba(232,185,74,.12); border:1px solid var(--accent); border-radius:8px; padding:10px 12px; font-size:13px;"></div>
   <fieldset>
     <legend>Identité</legend>
     <div class="field-row">
@@ -1724,6 +1725,71 @@ function personneFormFields(p = {}) {
   `;
 }
 
+// ==========================================================
+// DOUBLONS PENDANT LA SAISIE D'UNE FICHE
+// ==========================================================
+function normDoublon(t) {
+  return (t || "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9@.]+/g, " ").trim();
+}
+function telDoublon(t) {
+  const d = (t || "").toString().replace(/\D/g, "");
+  return d.length >= 9 ? d.slice(-9) : "";
+}
+function chercherDoublonsFiche() {
+  const v = (id) => (document.getElementById(id) || {}).value || "";
+  const nom = normDoublon(v("f-nom")), prenom = normDoublon(v("f-prenom"));
+  const tel = telDoublon(v("f-tel")), email = normDoublon(v("f-email")), naiss = v("f-date-naissance");
+  const moi = state.currentEditingPersonneId;
+  const res = [];
+  for (const x of state.personnes) {
+    if (moi && x.id === moi) continue;
+    const raisons = [];
+    const xn = normDoublon(x.nom), xp = normDoublon(x.prenom);
+    if (nom && prenom && xn === nom && xp === prenom) raisons.push("même nom et prénom");
+    else if (nom && naiss && xn === nom && x.date_naissance === naiss) raisons.push("même nom et date de naissance");
+    if (tel && telDoublon(x.telephone) === tel) raisons.push("même téléphone");
+    if (email && email.includes("@") && normDoublon(x.email) === email) raisons.push("même e-mail");
+    if (raisons.length) res.push({ p: x, raisons });
+  }
+  return res;
+}
+function afficherDoublonsFiche() {
+  const zone = document.getElementById("doublon-alerte");
+  if (!zone) return false;
+  const res = chercherDoublonsFiche();
+  if (!res.length) { zone.style.display = "none"; zone.innerHTML = ""; return true; }
+  const typeTxt = (t) => t === "comedien" ? "Comédien" : t === "figurant" ? "Figurant" : t ? "Comédien+Fig." : "";
+  zone.innerHTML = `<div style="font-weight:600; margin-bottom:6px;">Attention : cette personne a peut-être déjà une fiche.</div>` +
+    res.slice(0, 5).map(({ p, raisons }) => `
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--border);">
+        <div style="flex:1; min-width:180px;">
+          <strong>${esc(p.prenom)} ${esc(p.nom)}</strong>
+          <span style="color:var(--text-muted);">${[typeTxt(p.type_personne), p.age ? p.age + " ans" : "", p.telephone || ""].filter(Boolean).map(esc).join(" · ")}</span>
+          <div style="font-size:12px; color:var(--text-muted);">${esc(raisons.join(", "))}</div>
+        </div>
+        <button type="button" class="btn secondary" onclick="ouvrirFicheExistante('${p.id}')">Ouvrir cette fiche pour la mettre à jour</button>
+      </div>`).join("") +
+    `<div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Si c'est bien une autre personne (homonyme), continuez simplement la saisie.</div>`;
+  zone.style.display = "block";
+  return true;
+}
+function ouvrirFicheExistante(id) {
+  if (!confirm("Abandonner cette saisie et ouvrir la fiche existante pour la mettre à jour ?")) return;
+  closeModal();
+  openPersonneModal(id);
+}
+let minuterieDoublons = null;
+function surveillerDoublonsFiche() {
+  clearInterval(minuterieDoublons);
+  let derniere = "";
+  // Vérifie aussi quand les champs sont remplis automatiquement (analyse de CV / photo)
+  minuterieDoublons = setInterval(() => {
+    if (!document.getElementById("doublon-alerte")) { clearInterval(minuterieDoublons); return; }
+    const sig = ["f-nom", "f-prenom", "f-tel", "f-email", "f-date-naissance"].map((i) => (document.getElementById(i) || {}).value || "").join("|");
+    if (sig !== derniere) { derniere = sig; afficherDoublonsFiche(); }
+  }, 600);
+}
+
 async function openPersonneModal(id) {
   state.currentEditingPersonneId = id;
   state.pendingDocsAfterSave = [];
@@ -1782,6 +1848,7 @@ async function openPersonneModal(id) {
   `);
 
   document.getElementById("btn-save-personne").addEventListener("click", savePersonne);
+  surveillerDoublonsFiche();
   if (id) {
     document.getElementById("btn-delete-personne").addEventListener("click", () => deletePersonne(id));
     loadDocuments(id);
