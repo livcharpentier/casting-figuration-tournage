@@ -332,12 +332,21 @@ function renderPersonnesGrid() {
     });
   }
 
+  const genreChoisi = document.getElementById("genre-personnes").value;
+  if (genreChoisi) list = list.filter((p) => p.genre === genreChoisi);
+  const lieuChoisi = normDoublon(document.getElementById("lieu-personnes").value);
+  if (lieuChoisi) list = list.filter((p) => normDoublon(p.adresse).includes(lieuChoisi));
+  const anneeChoisie = document.getElementById("annee-entree-personnes").value;
+  if (anneeChoisie) list = list.filter((p) => p.created_at && new Date(p.created_at).getFullYear() === Number(anneeChoisie));
+  list = trierTrombi(list, document.getElementById("tri-personnes").value);
+  const filtreActif = search || genreChoisi || lieuChoisi || anneeChoisie;
+
   const totalGeneral = state.personnes.length;
   const nbComediens = state.personnes.filter((p) => p.type_personne === "comedien").length;
   const nbFigurants = state.personnes.filter((p) => p.type_personne === "figurant").length;
   const nbComediensFigurants = state.personnes.filter((p) => p.type_personne === "comedien_figurant").length;
   const compteurEl = document.getElementById("personnes-total-count");
-  compteurEl.textContent = search
+  compteurEl.textContent = filtreActif
     ? `${list.length} personne(s) affichée(s) sur ${totalGeneral} au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`
     : `${totalGeneral} personne(s) au total (${nbComediens} comédien(s), ${nbFigurants} figurant(s), ${nbComediensFigurants} comédien(s)+figurant(s))`;
 
@@ -730,6 +739,8 @@ async function quickDeletePersonne(id) {
   await loadPersonnes();
 }
 document.getElementById("search-personnes").addEventListener("input", renderPersonnesGrid);
+["tri-personnes", "genre-personnes"].forEach((id) => document.getElementById(id).addEventListener("change", renderPersonnesGrid));
+["lieu-personnes", "annee-entree-personnes"].forEach((id) => document.getElementById(id).addEventListener("input", renderPersonnesGrid));
 
 document.getElementById("btn-recherche-intelligente-personnes").addEventListener("click", async () => {
   const input = document.getElementById("search-personnes");
