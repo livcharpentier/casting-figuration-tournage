@@ -2582,6 +2582,13 @@ async function generateTrombinoscopePortraits() {
     });
   }
 
+  // Lieu d'habitation et année d'entrée sur le site (date de création de la fiche)
+  const lieu = normDoublon(document.getElementById("tf-lieu").value);
+  if (lieu) list = list.filter((p) => normDoublon(p.adresse).includes(lieu));
+  const anneeEntree = document.getElementById("tf-annee-entree").value;
+  if (anneeEntree) list = list.filter((p) => p.created_at && new Date(p.created_at).getFullYear() === Number(anneeEntree));
+  list = trierTrombi(list, document.getElementById("tf-tri").value);
+
   document.getElementById("trombi-count").textContent = `${list.length} personne(s) correspondent aux critères.`;
   const grid = document.getElementById("trombi-results");
   const panelRenouvellement = document.getElementById("trombi-renouvellement-panel");
@@ -2625,13 +2632,44 @@ async function generateTrombinoscopePortraits() {
           ${p.adresse ? "Habite: " + esc(p.adresse) + "<br>" : ""}
           ${p.metier ? "Métier: " + esc(p.metier) + "<br>" : ""}
           ${p.permis_conduire ? "Permis: " + (p.types_permis || "oui") + "<br>" : ""}
-          ${p.telephone ? "Tél: " + esc(p.telephone) : ""}
+          ${p.telephone ? "Tél: " + esc(p.telephone) + "<br>" : ""}
+          ${p.created_at ? "Sur le site depuis : " + esc(dateFr(p.created_at)) : ""}
         </div>
         <span class="badge ${p.type_personne}">${p.type_personne === "comedien" ? "Comédien" : p.type_personne === "figurant" ? "Figurant" : "Comédien+Fig."}</span>
       </div>
     </div>
   `;
   }).join("");
+}
+
+// Tri du trombinoscope général
+function codePostalDe(adresse) {
+  const m = (adresse || "").match(/\b(\d{5})\b/);
+  return m ? m[1] : "";
+}
+function trierTrombi(list, tri) {
+  const l = list.slice();
+  const nomDe = (p) => `${p.nom || ""} ${p.prenom || ""}`.toLowerCase();
+  const parNom = (a, b) => nomDe(a).localeCompare(nomDe(b), "fr");
+  const date = (p) => (p.created_at ? new Date(p.created_at).getTime() : 0);
+  const age = (p) => (p.age === null || p.age === undefined || p.age === "" ? null : Number(p.age));
+  const sansValeurALaFin = (va, vb) => (va === null && vb === null ? 0 : va === null ? 1 : vb === null ? -1 : null);
+  if (tri === "recents") l.sort((a, b) => date(b) - date(a) || parNom(a, b));
+  else if (tri === "anciens") l.sort((a, b) => (date(a) || Infinity) - (date(b) || Infinity) || parNom(a, b));
+  else if (tri === "age-croissant" || tri === "age-decroissant") {
+    const sens = tri === "age-croissant" ? 1 : -1;
+    l.sort((a, b) => { const z = sansValeurALaFin(age(a), age(b)); return (z !== null ? z : sens * (age(a) - age(b))) || parNom(a, b); });
+  } else if (tri === "lieu") {
+    l.sort((a, b) => {
+      const ca = codePostalDe(a.adresse) || null, cb = codePostalDe(b.adresse) || null;
+      const z = sansValeurALaFin(ca, cb);
+      return (z !== null ? z : ca.localeCompare(cb)) || (a.adresse || "").localeCompare(b.adresse || "", "fr") || parNom(a, b);
+    });
+  } else if (tri === "genre") {
+    const ordre = { Femme: 0, Homme: 1, Enfant: 2 };
+    l.sort((a, b) => ((ordre[a.genre] ?? 3) - (ordre[b.genre] ?? 3)) || parNom(a, b));
+  } else l.sort(parNom);
+  return l;
 }
 
 const PLANCHE_LABELS = { pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
@@ -2669,6 +2707,8 @@ async function generateTrombinoscopeCategorie(categorie) {
 }
 
 document.getElementById("btn-trombi-filter").addEventListener("click", generateTrombinoscope);
+// Changer le tri relance aussitôt le trombi déjà affiché
+document.getElementById("tf-tri").addEventListener("change", () => { if (state.lastTrombiRawList && state.lastTrombiRawList.length) generateTrombinoscope(); });
 document.getElementById("btn-trombi-print-reduit").addEventListener("click", () => genererImpressionTrombinoscope("reduit"));
 document.getElementById("btn-trombi-print-complet").addEventListener("click", () => genererImpressionTrombinoscope("complet"));
 
@@ -2792,6 +2832,9 @@ document.getElementById("btn-trombi-reset").addEventListener("click", () => {
   document.getElementById("tf-competence").value = "";
   document.getElementById("tf-langue").value = "";
   document.getElementById("tf-recherche-libre").value = "";
+  document.getElementById("tf-lieu").value = "";
+  document.getElementById("tf-annee-entree").value = "";
+  document.getElementById("tf-tri").value = "nom";
   document.getElementById("trombi-results").innerHTML = "";
   document.getElementById("trombi-count").textContent = "";
 });

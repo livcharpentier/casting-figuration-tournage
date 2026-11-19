@@ -363,6 +363,28 @@
       </div>
       <div class="field-row">
         <div class="field">
+          <label>Lieu d'habitation</label>
+          <input type="text" id="tf-lieu" placeholder="ville, département ou code postal (ex 75, Rouen, 27)">
+        </div>
+        <div class="field">
+          <label>Entré·e sur le site en (année)</label>
+          <input type="number" id="tf-annee-entree" placeholder="ex 2025">
+        </div>
+        <div class="field">
+          <label>Trier par</label>
+          <select id="tf-tri">
+            <option value="nom">Nom (A → Z)</option>
+            <option value="recents">Entrée sur le site : plus récents d'abord</option>
+            <option value="anciens">Entrée sur le site : plus anciens d'abord</option>
+            <option value="age-croissant">Âge : du plus jeune au plus âgé</option>
+            <option value="age-decroissant">Âge : du plus âgé au plus jeune</option>
+            <option value="lieu">Lieu d'habitation (code postal)</option>
+            <option value="genre">Genre : femmes, hommes, puis enfants</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
           <label>Métier réel</label>
           <input type="text" id="tf-metier" placeholder="ex infirmier, pompier, policier, parachutiste...">
         </div>
