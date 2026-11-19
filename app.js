@@ -1180,7 +1180,8 @@ function ajouterBlocMail() {
       </div>
       <div style="flex:1; min-width:150px;">
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">CV (facultatif — pas grave si tu ne l'as pas)</div>
-        <input type="file" class="bloc-cv" accept=".pdf">
+        <div class="bloc-cv-zone" tabindex="0" style="border:1px dashed var(--border); border-radius:6px; padding:8px; text-align:center; font-size:11px; color:var(--text-muted); cursor:pointer; min-height:34px;">Glisse ici le CV (PDF) depuis le mail — ou clique pour le choisir</div>
+        <input type="file" class="bloc-cv" accept=".pdf,application/pdf" style="display:none;">
         <button type="button" class="bloc-cv-retirer" style="display:none; background:none; border:none; color:var(--red); cursor:pointer; font-size:11px; padding:2px 0;">✕ Retirer ce CV</button>
       </div>
       <div style="min-width:110px;">
@@ -1195,12 +1196,44 @@ function ajouterBlocMail() {
   // Retirer le CV sélectionné par erreur
   const inputCv = div.querySelector(".bloc-cv");
   const btnRetirerCv = div.querySelector(".bloc-cv-retirer");
-  inputCv.addEventListener("change", () => {
-    btnRetirerCv.style.display = inputCv.files && inputCv.files.length ? "block" : "none";
-  });
+  const zoneCv = div.querySelector(".bloc-cv-zone");
+  const texteZoneCv = zoneCv.textContent;
+  const rafraichirCv = () => {
+    const f = inputCv.files && inputCv.files[0];
+    btnRetirerCv.style.display = f ? "block" : "none";
+    zoneCv.textContent = f ? `✓ ${f.name}` : texteZoneCv;
+    zoneCv.style.color = f ? "var(--accent)" : "var(--text-muted)";
+    zoneCv.style.borderColor = f ? "var(--accent)" : "var(--border)";
+  };
+  // Met un fichier PDF dans la case CV (glisser-déposer ou collage, sans passer par le disque dur)
+  const poserCv = (fichier) => {
+    const dt = new DataTransfer();
+    dt.items.add(fichier);
+    inputCv.files = dt.files;
+    rafraichirCv();
+  };
+  const estPdf = (f) => f && (f.type === "application/pdf" || /\.pdf$/i.test(f.name || ""));
+  inputCv.addEventListener("change", rafraichirCv);
   btnRetirerCv.addEventListener("click", () => {
     inputCv.value = "";
-    btnRetirerCv.style.display = "none";
+    rafraichirCv();
+  });
+  zoneCv.addEventListener("click", () => inputCv.click());
+  zoneCv.addEventListener("dragover", (e) => { e.preventDefault(); zoneCv.classList.add("dragover"); });
+  zoneCv.addEventListener("dragleave", () => zoneCv.classList.remove("dragover"));
+  zoneCv.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zoneCv.classList.remove("dragover");
+    const f = Array.from((e.dataTransfer && e.dataTransfer.files) || []).find(estPdf);
+    if (f) poserCv(f);
+    else zoneCv.textContent = "Ce fichier n'est pas un PDF — glisse le CV au format PDF.";
+  });
+  zoneCv.addEventListener("paste", (e) => {
+    const items = e.clipboardData ? e.clipboardData.items : [];
+    for (const item of items) {
+      const f = item.getAsFile && item.getAsFile();
+      if (estPdf(f)) { poserCv(f); e.preventDefault(); return; }
+    }
   });
 
   // Reprend automatiquement l'année du lot déjà saisie en haut de la fenêtre, si elle existe
@@ -1262,7 +1295,10 @@ function ajouterBlocMail() {
     e.preventDefault();
     zoneCollage.classList.remove("dragover");
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
-      Array.from(e.dataTransfer.files).forEach((f) => photosAccumulees.push(f));
+      Array.from(e.dataTransfer.files).forEach((f) => {
+        if (estPdf(f)) poserCv(f); // un PDF glissé ici est un CV : on le range dans la case CV
+        else photosAccumulees.push(f);
+      });
       rafraichirAffichagePhotos();
     }
   });
