@@ -240,6 +240,45 @@ async function convertirPdfEnImagesCompressees(file, maxPages = 3, maxDim = 1400
   return images;
 }
 
+// Lit le texte d'un CV PDF (texte réel + liens mailto:/tel: cachés derrière les mots),
+// pour que l'IA retrouve à coup sûr le mail et le téléphone, même écrits en petit.
+async function extraireTextePdf(file, maxPages = 4) {
+  try {
+    if (typeof pdfjsLib === "undefined") return "";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const morceaux = [];
+    for (let i = 1; i <= Math.min(pdf.numPages, maxPages); i++) {
+      const page = await pdf.getPage(i);
+      const contenu = await page.getTextContent();
+      morceaux.push(contenu.items.map((it) => it.str + (it.hasEOL ? "\n" : " ")).join(""));
+      try {
+        const annots = await page.getAnnotations();
+        annots.forEach((a) => { if (a.url) morceaux.push("Lien : " + a.url); });
+      } catch (e) { /* pas de liens */ }
+    }
+    return morceaux.join("\n").replace(/[ \t]+/g, " ").trim().slice(0, 8000);
+  } catch (e) {
+    return "";
+  }
+}
+
+// Filet de sécurité si l'IA n'a pas trouvé le mail ou le téléphone : on les cherche dans le texte
+function trouverEmail(texte) {
+  const m = String(texte || "").replace(/mailto:/gi, " ").match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+  return m ? m[0].replace(/\.$/, "") : "";
+}
+function trouverTelephone(texte) {
+  const t = String(texte || "").replace(/tel:/gi, " ");
+  const m = t.match(/(?:\+33|0033)[\s.\-]?\(?0?\)?[\s.\-]?[1-9](?:[\s.\-]?\d{2}){4}/) || t.match(/\b0[1-9](?:[\s.\-]?\d{2}){4}\b/);
+  if (!m) return "";
+  let chiffres = m[0].replace(/\D/g, "");
+  if (chiffres.startsWith("0033")) chiffres = "0" + chiffres.slice(4);
+  else if (chiffres.startsWith("33")) chiffres = "0" + chiffres.slice(2);
+  chiffres = chiffres.replace(/^00/, "0");
+  return chiffres.length === 10 ? chiffres.replace(/(\d{2})(?=\d)/g, "$1 ").trim() : m[0].trim();
+}
+
 async function redimensionnerImagePourAnalyse(file, maxDim = 1400, qualite = 0.82) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1366,7 +1405,14 @@ async function analyserMailsMasse() {
     const paquet = blocsData.slice(debut, fin);
     status.innerHTML = `<span class="spinner"></span> Analyse : personne ${debut + 1} à ${fin} sur ${blocsData.length}...`;
 
-    const texte = paquet.map((b, i) => `=== MAIL N°${i} ===\n${b.texte || "(pas de texte de mail — seulement une photo et/ou un CV)"}`).join("\n\n");
+    for (const b of paquet) {
+      if (b.cv && b.texteCv === undefined) b.texteCv = await extraireTextePdf(b.cv, 2);
+    }
+    const texte = paquet.map((b, i) => {
+      const morceaux = [b.texte || (b.texteCv ? "" : "(pas de texte de mail — seulement une photo et/ou un CV)")];
+      if (b.texteCv) morceaux.push(`--- Texte de son CV (mail, téléphone et infos à reprendre aussi) ---\n${b.texteCv.slice(0, 3000)}`);
+      return `=== MAIL N°${i} ===\n${morceaux.filter(Boolean).join("\n")}`;
+    }).join("\n\n");
     try {
       const resultats = await callExtractPdtApi({ type: "import_emails_masse", texte });
       resultats.forEach((r) => {
@@ -1375,6 +1421,9 @@ async function analyserMailsMasse() {
         if (!bloc) return;
         // Si une date de mail a été donnée et qu'aucune année de photo n'a été détectée par ailleurs, on l'utilise
         if (bloc.dateMail && !r.photo_annee) r.photo_annee = Number(bloc.dateMail);
+        const source = `${bloc.texte || ""}\n${bloc.texteCv || ""}`;
+        if (!r.email) r.email = trouverEmail(source);
+        if (!r.telephone) r.telephone = trouverTelephone(source);
         resultatsComplets.push(r);
         fichiersComplets.push({ photos: bloc.photos, cv: bloc.cv });
       });
@@ -2159,6 +2208,7 @@ async function analyserFichiers(files) {
     let mainPhotoFile = null;
 
     const unreadableFiles = [];
+    const textesCv = [];
     for (const file of files) {
       nomsFichiers.push(file.name);
       if (file.type.startsWith("image/")) {
@@ -2168,6 +2218,8 @@ async function analyserFichiers(files) {
       } else if (file.type === "application/pdf") {
         const pagesImages = await convertirPdfEnImagesCompressees(file);
         pagesImages.forEach((data) => images.push({ data, mediaType: "image/jpeg" }));
+        const texteCv = await extraireTextePdf(file);
+        if (texteCv) textesCv.push(`--- Texte du CV « ${file.name} » ---\n${texteCv}`);
         state.pendingDocsAfterSave.push({ file, type_document: "cv", categorie_photo: null });
       } else if (file.type.startsWith("video/")) {
         state.pendingDocsAfterSave.push({ file, type_document: "demo_video", categorie_photo: null });
@@ -2178,7 +2230,8 @@ async function analyserFichiers(files) {
       }
     }
 
-    const payload = { texte: texte || undefined, images, pdfs, nomsFichiers };
+    const texteComplet = [texte, ...textesCv].filter(Boolean).join("\n\n");
+    const payload = { texte: texteComplet || undefined, images, pdfs, nomsFichiers };
     const res = await fetch("/api/extract-info", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2193,6 +2246,8 @@ async function analyserFichiers(files) {
     }
     if (json.error) { status.textContent = "Erreur : " + json.error; return; }
     const d = json.extracted || {};
+    if (!d.email) d.email = trouverEmail(texteComplet);
+    if (!d.telephone) d.telephone = trouverTelephone(texteComplet);
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== null && val !== undefined && val !== "") el.value = val; };
     setVal("f-prenom", d.prenom); setVal("f-nom", d.nom);
     const naissanceDetectee = detecterNaissanceDansNoms(nomsFichiers);
