@@ -1625,6 +1625,7 @@ async function lancerImportMailsMasse() {
         parent_profession: r.parent_profession || null,
         parent_notes: r.parent_notes || null,
         notes: r.notes || null,
+        photo_annee: Number(r.photo_annee) || null,
         photo_url,
       }).select().single();
       if (errInsert) throw errInsert;
