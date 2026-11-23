@@ -349,6 +349,7 @@ async function loadPersonnes() {
   state.personnes = data || [];
   renderPersonnesGrid();
   majBoutonDoublons();
+  majBoutonDaterPhotos();
 }
 
 function renderPersonnesGrid() {
@@ -876,6 +877,114 @@ document.getElementById("btn-detecter-doublons").addEventListener("click", () =>
   if (c.style.display === "block" && c.dataset.ouvert === "1") { c.style.display = "none"; c.dataset.ouvert = ""; return; }
   renderDoublonsReview(trouverGroupesDoublons());
 });
+
+// ==========================================================
+// Dater les photos des anciennes fiches (« Année inconnue »)
+// L'année vient de la date de prise de vue enregistrée dans la photo (EXIF),
+// sinon de la date à laquelle la fiche a été saisie. Rien n'est changé sans validation.
+// ==========================================================
+function personnesSansAnneePhoto() {
+  return (state.personnes || []).filter((p) => p.photo_url && !p.photo_annee);
+}
+function majBoutonDaterPhotos() {
+  const b = document.getElementById("btn-dater-photos");
+  if (!b) return;
+  const n = personnesSansAnneePhoto().length;
+  b.style.display = n ? "" : "none";
+  b.textContent = `Dater les photos sans année (${n})`;
+}
+async function lireAnneeExif(url) {
+  try {
+    const rep = await fetch(url, { headers: { Range: "bytes=0-262143" } });
+    if (!rep.ok && rep.status !== 206) return null;
+    const octets = new Uint8Array(await rep.arrayBuffer()).slice(0, 262144);
+    let texte = "";
+    for (let i = 0; i < octets.length; i++) texte += String.fromCharCode(octets[i]);
+    const anneeMax = new Date().getFullYear();
+    const dates = [...texte.matchAll(/((?:19|20)\d{2}):([01]\d):([0-3]\d) [0-2]\d:[0-5]\d:[0-5]\d/g)]
+      .map((m) => Number(m[1]))
+      .filter((a) => a >= 1995 && a <= anneeMax);
+    return dates.length ? Math.min(...dates) : null; // la plus ancienne = prise de vue (les autres = retouches)
+  } catch (e) {
+    return null;
+  }
+}
+async function ouvrirDaterPhotos() {
+  const c = document.getElementById("dater-photos-review");
+  if (c.style.display === "block") { c.style.display = "none"; return; }
+  const liste = personnesSansAnneePhoto();
+  c.style.display = "block";
+  if (!liste.length) { c.innerHTML = `<div class="card" style="padding:12px;">Toutes les photos ont une année.</div>`; return; }
+  c.innerHTML = `<div class="card" style="padding:12px;"><span class="spinner"></span> Lecture des photos : 0 sur ${liste.length}...</div>`;
+  const propositions = [];
+  let fait = 0;
+  const file = liste.slice();
+  const travailleur = async () => {
+    while (file.length) {
+      const p = file.shift();
+      const exif = await lireAnneeExif(p.photo_url);
+      const saisie = p.created_at ? new Date(p.created_at).getFullYear() : null;
+      propositions.push({ p, annee: exif || saisie, source: exif ? "date de la photo" : saisie ? "date de saisie de la fiche" : "" });
+      fait++;
+      const s = c.querySelector(".card");
+      if (s) s.innerHTML = `<span class="spinner"></span> Lecture des photos : ${fait} sur ${liste.length}...`;
+    }
+  };
+  await Promise.all([travailleur(), travailleur(), travailleur(), travailleur()]);
+  propositions.sort((a, b) => `${a.p.nom} ${a.p.prenom}`.localeCompare(`${b.p.nom} ${b.p.prenom}`));
+  state.propositionsDates = propositions;
+  const nbExif = propositions.filter((x) => x.source === "date de la photo").length;
+  c.innerHTML = `
+    <div class="card" style="padding:12px;">
+      <div style="font-weight:700; margin-bottom:4px;">${propositions.length} fiche(s) avec une photo sans année</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">Année trouvée dans la photo elle-même pour ${nbExif} fiche(s) ; pour les autres, l'appli propose l'année où la fiche a été saisie. Vérifie, corrige si besoin, décoche celles à ne pas dater, puis enregistre.</div>
+      <div style="max-height:420px; overflow:auto;">
+        <table style="width:100%; font-size:13px; border-collapse:collapse;">
+          <thead><tr><th><input type="checkbox" id="dater-tout" checked></th><th></th><th style="text-align:left;">Nom</th><th>Année proposée</th><th style="text-align:left;">D'après</th></tr></thead>
+          <tbody>
+            ${propositions.map((x, i) => `
+              <tr style="border-top:1px solid var(--border);">
+                <td style="text-align:center;"><input type="checkbox" class="dater-check" data-idx="${i}" ${x.annee ? "checked" : ""}></td>
+                <td><img src="${esc(x.p.photo_url)}" alt="" style="width:36px; height:48px; object-fit:cover; border-radius:4px;"></td>
+                <td>${esc(x.p.prenom || "")} ${esc(x.p.nom || "")}</td>
+                <td style="text-align:center;"><input type="number" class="dater-annee" data-idx="${i}" value="${x.annee || ""}" min="1990" max="2100" style="width:80px;"></td>
+                <td style="color:${x.source === "date de la photo" ? "var(--accent)" : "var(--text-muted)"};">${esc(x.source || "—")}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+        <button type="button" class="btn" id="btn-dater-enregistrer">Enregistrer les années cochées</button>
+        <button type="button" class="btn secondary" id="btn-dater-fermer">Fermer</button>
+        <span id="dater-status" style="font-size:13px; color:var(--text-muted);"></span>
+      </div>
+    </div>`;
+  document.getElementById("dater-tout").addEventListener("change", (e) => {
+    document.querySelectorAll(".dater-check").forEach((cb) => { cb.checked = e.target.checked; });
+  });
+  document.getElementById("btn-dater-fermer").addEventListener("click", () => { c.style.display = "none"; });
+  document.getElementById("btn-dater-enregistrer").addEventListener("click", enregistrerDatesPhotos);
+}
+async function enregistrerDatesPhotos() {
+  const status = document.getElementById("dater-status");
+  const lignes = Array.from(document.querySelectorAll(".dater-check:checked")).map((cb) => {
+    const i = Number(cb.dataset.idx);
+    const annee = Number(document.querySelector(`.dater-annee[data-idx="${i}"]`).value);
+    return { p: state.propositionsDates[i].p, annee };
+  }).filter((l) => l.annee >= 1990 && l.annee <= 2100);
+  if (!lignes.length) { status.textContent = "Aucune année valide cochée."; return; }
+  let ok = 0;
+  for (const l of lignes) {
+    status.innerHTML = `<span class="spinner"></span> Enregistrement ${ok + 1} sur ${lignes.length}...`;
+    const { error } = await sb.from("personnes").update({ photo_annee: l.annee }).eq("id", l.p.id);
+    if (!error) { l.p.photo_annee = l.annee; ok++; }
+  }
+  status.textContent = `${ok} fiche(s) datée(s).`;
+  renderPersonnesGrid();
+  majBoutonDaterPhotos();
+  setTimeout(() => { document.getElementById("dater-photos-review").style.display = "none"; }, 1500);
+}
+document.getElementById("btn-dater-photos").addEventListener("click", ouvrirDaterPhotos);
 
 function renderDoublonsReview(groupes) {
   const container = document.getElementById("doublons-review");
