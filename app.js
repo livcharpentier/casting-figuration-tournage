@@ -446,6 +446,41 @@ function photoDateBadgeHtml(year) {
 const CAT_PHOTO_LABELS = { portrait: "Portrait", pied: "En pied", vehicule: "Véhicule", tenue_chic: "Tenue chic", animal: "Animal", autre: "Autre" };
 const TYPE_DOC_LABELS = { cv: "CV", demo_video: "Démo vidéo", demo_lien: "Démo (lien)", photo: "Photo", autre: "Autre" };
 
+// ---------- Téléchargement des documents (CV, photos, démos) ----------
+function nomFichierDoc(d, p) {
+  const base = String(d.libelle || "").trim();
+  const ext = ((base.match(/\.([a-z0-9]{2,5})$/i) || String(d.fichier_url || "").split("?")[0].match(/\.([a-z0-9]{2,5})$/i) || [])[1] || "pdf").toLowerCase();
+  const nomPersonne = p ? `${p.prenom || ""}_${p.nom || ""}`.trim().replace(/\s+/g, "_").replace(/^_|_$/g, "") : "";
+  const type = { cv: "CV", photo: "Photo", demo_video: "Demo" }[d.type_document] || "Document";
+  return nomPersonne ? `${type}_${nomPersonne}.${ext}` : (base || `${type}.${ext}`);
+}
+async function telechargerDocument(url, nom, bouton) {
+  const texte = bouton ? bouton.textContent : "";
+  try {
+    if (bouton) { bouton.disabled = true; bouton.textContent = "…"; }
+    const rep = await fetch(url);
+    if (!rep.ok) throw new Error("HTTP " + rep.status);
+    const blob = await rep.blob();
+    const lien = document.createElement("a");
+    lien.href = URL.createObjectURL(blob);
+    lien.download = nom || "document";
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(() => URL.revokeObjectURL(lien.href), 4000);
+  } catch (e) {
+    window.open(url, "_blank"); // à défaut, on l'ouvre : enregistrement possible depuis le lecteur PDF
+  } finally {
+    if (bouton) { bouton.disabled = false; bouton.textContent = texte; }
+  }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".btn-telecharger-doc");
+  if (!b) return;
+  e.preventDefault();
+  telechargerDocument(b.dataset.url, b.dataset.nom, b);
+});
+
 async function openFicheModal(id) {
   const p = state.personnes.find((x) => x.id === id);
   if (!p) return;
@@ -561,6 +596,7 @@ async function openFicheModal(id) {
             <div class="doc-item">
               <span class="type-tag">${TYPE_DOC_LABELS[d.type_document] || d.type_document}</span>
               <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
+              ${d.fichier_url ? `<button type="button" class="btn-icon btn-telecharger-doc" data-url="${esc(d.fichier_url)}" data-nom="${esc(nomFichierDoc(d, p))}">Télécharger</button>` : ""}
             </div>
           `).join("")}
         </div>` : `<div style="color:var(--text-muted); font-size:13px;">Aucun document (CV, démo...) ajouté.</div>`}
@@ -2631,6 +2667,7 @@ function renderDocuments(docs) {
     <div class="doc-item">
       <span class="type-tag">${labels[d.type_document] || d.type_document}${d.type_document === "photo" && d.categorie_photo ? " · " + catLabels[d.categorie_photo] : ""}</span>
       <a href="${esc(d.fichier_url || d.lien_externe)}" target="_blank">${esc(d.libelle || d.fichier_url || d.lien_externe)}</a>
+      ${d.fichier_url ? `<button type="button" class="btn-icon btn-telecharger-doc" data-url="${esc(d.fichier_url)}" data-nom="${esc(nomFichierDoc(d, (state.personnes || []).find((x) => x.id === state.currentEditingPersonneId)))}">Télécharger</button>` : ""}
       ${d.type_document === "photo" ? `<input type="number" class="doc-annee-edit" data-doc-id="${d.id}" value="${d.annee_photo ?? ""}" placeholder="Année" style="width:64px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:3px 5px; font-size:12px;">` : ""}
       <button class="btn-icon" onclick="deleteDocument('${d.id}', '${state.currentEditingPersonneId}')">Supprimer</button>
     </div>
